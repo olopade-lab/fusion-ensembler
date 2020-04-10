@@ -107,7 +107,6 @@ def run_arriba(
             '-v {left_fq}:{left_fq}:ro'
             '-v {right_fq}:{right_fq}:ro',
             '-v {star_index}:/star_index:ro',
-            '{image}'
         ]
     elif container_type == 'singularity':
         command += [
@@ -117,17 +116,18 @@ def run_arriba(
             '-B {left_fq}:{left_fq}',
             '-B {right_fq}:{right_fq}',
             '-B {star_index}:/star_index',
-            ' docker://{image}'
         ]
     else:
         raise RuntimeError('Container type must be either docker or singularity')
 
+    # FIXME either do not hardcode arriba version, or hardcode all callers in a single image
     command += [
-        '/arriba*/run_arriba.sh',
+        '{image}',
+        '/arriba_v1.1.0/run_arriba.sh',
         '/star_index',
         '/annotation',
         '/assembly',
-        '/arriba*/database/blacklist_*.tsv.gz',
+        '/arriba_v1.1.0/database/blacklist_hg38_GRCh38_2018-11-04.tsv.gz',
         '{left_fq}',
         '{right_fq}',
         '{threads}'
