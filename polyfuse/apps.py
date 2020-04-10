@@ -97,7 +97,7 @@ def run_arriba(
     import os
 
 
-    command = ['echo $HOSTNAME; mkdir -p {output}; cd {output}']
+    command = ['echo $HOSTNAME; mkdir -p {output}; cd {output}; ']
     if container_type == 'docker':
         command += [
             'docker run',
@@ -131,12 +131,13 @@ def run_arriba(
         '{left_fq}',
         '{right_fq}',
         '{threads}'
-    )
+    ]
 
-    return ' '.join(command.format(
+    return ' '.join(command).format(
+            image=image,
             output=output,
             assembly=assembly,
-            annotation=annootation,
+            annotation=annotation,
             left_fq=left_fq,
             right_fq=right_fq,
             star_index=star_index,
