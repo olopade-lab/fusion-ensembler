@@ -2,7 +2,8 @@ import argparse
 import importlib
 import os
 import glob
-import apps
+import subprocess
+from polyfuse import apps
 
 import parsl
 parsl.set_stream_logger()
