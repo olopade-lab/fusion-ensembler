@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y gcc g++ perl python automake make \
        vim \
        gfortran \
        build-essential libghc-zlib-dev libncurses-dev libbz2-dev liblzma-dev libpcre3-dev libxml2-dev \
-       libblas-dev gfortran git unzip ftp libzmq3-dev ftp fort77 libreadline-dev \
+       libblas-dev gfortran unzip ftp libzmq3-dev ftp fort77 libreadline-dev \
        libcurl4-openssl-dev libx11-dev libxt-dev \
        x11-common libcairo2-dev libpng-dev libreadline-dev libjpeg-dev pkg-config libtbb-dev \
        cmake rsync libssl-dev tzdata \
@@ -134,6 +134,29 @@ RUN git clone --recursive https://github.com/trinityrnaseq/trinityrnaseq.git && 
 ENV TRINITY_HOME /usr/local/bin/trinityrnaseq
 ENV PATH=${TRINITY_HOME}:${PATH}
 
+## GMAP  (build / install using --prefix, or else this one will clobber important header files)
+ENV GMAP_VERSION=2017-11-15
+WORKDIR $SRC
+RUN GMAP_URL="http://research-pub.gene.com/gmap/src/gmap-gsnap-$GMAP_VERSION.tar.gz" && \
+    wget $GMAP_URL && \
+    tar xvf gmap-gsnap-$GMAP_VERSION.tar.gz && \
+    cd gmap-$GMAP_VERSION && ./configure --prefix=`pwd` && make && make install && cp ./bin/* $BIN/
+
+
+## STAR-Fusion:
+WORKDIR $SRC
+
+ENV STAR_FUSION_VERSION=1.9.0
+ENV STARF_CHECKOUT=36ed7468942d84baa44e1b973bf354d3d653d344
+
+RUN git clone https://github.com/STAR-Fusion/STAR-Fusion.git && \
+     cd STAR-Fusion && \
+     git checkout $STARF_CHECKOUT && \
+     git submodule init && git submodule update && \
+     cd FusionInspector && \
+     git submodule init && git submodule update
+
+ENV STAR_FUSION_HOME $SRC/STAR-Fusion
 
 # COPY run.sh /usr/local/bin
 # RUN chmod a+x /usr/local/bin/run.sh
