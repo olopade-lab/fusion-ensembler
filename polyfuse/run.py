@@ -15,7 +15,6 @@ parser.add_argument("left_fq", help="")
 parser.add_argument("right_fq", help="")
 parser.add_argument("--config", default=None, help="Parsl config to parallelize with")
 parser.add_argument("--outdir", default=None, help="")
-parser.add_argument("--arriba_image", default='uhrigs/arriba:1.1.0', help="")
 parser.add_argument("--container_type", default='docker',
         help="Container type to use; either 'singularity' or 'docker'")
 args = parser.parse_args()
@@ -38,14 +37,12 @@ annotation = os.path.join(args.ctat_dir, 'ref_annot.gtf')
 star_index = os.path.join(args.ctat_dir, 'ref_genome.fa.star.idx')
 
 if args.container_type == 'singularity':
-    # FIXME fold everything into a single container
-    os.makedirs('{base_dir}/docker/images'.format(base_dir=base_dir), exist_ok=True)
-    arriba_image_path = '{base_dir}/docker/images/arriba.img'.format(base_dir=base_dir)
-    if not os.path.isfile(arriba_image_path):
+    image_path = '{base_dir}/docker/polyfuse.sif'.format(base_dir=base_dir)
+    # FIXME may require too much memory on some machines
+    if not os.path.isfile(image_path):
         subprocess.call(
-            'singularity build {image_path} docker://{image}'.format(
-                image_path=arriba_image_path,
-                image=args.arriba_image
+            'singularity build {image_path} docker://olopadelab/polyfuse:latest'.format(
+                image_path=image_path
             )
         )
 
@@ -75,8 +72,7 @@ for sample_dir in sample_dirs:
         left_fq,
         right_fq,
         star_index,
-        container_type=args.container_type,
-        image=arriba_image_path if args.container_type == 'singularity' else args.arriba_image
+        container_type=args.container_type
     )
 
 parsl.wait_for_current_tasks()

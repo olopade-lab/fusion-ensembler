@@ -91,7 +91,6 @@ def run_arriba(
         right_fq,
         star_index,
         container_type='docker',
-        image='uhrigs/arriba:1.1.0',
         stderr=parsl.AUTO_LOGNAME,
         stdout=parsl.AUTO_LOGNAME):
     import os
@@ -107,6 +106,7 @@ def run_arriba(
             '-v {left_fq}:{left_fq}:ro'
             '-v {right_fq}:{right_fq}:ro',
             '-v {star_index}:/star_index:ro',
+            'olopadelab/polyfuse'
         ]
     elif container_type == 'singularity':
         command += [
@@ -116,18 +116,17 @@ def run_arriba(
             '-B {left_fq}:{left_fq}',
             '-B {right_fq}:{right_fq}',
             '-B {star_index}:/star_index',
+            '{base_dir}/docker/polyfuse.sif'
         ]
     else:
         raise RuntimeError('Container type must be either docker or singularity')
 
-    # FIXME either do not hardcode arriba version, or hardcode all callers in a single image
     command += [
-        '{image}',
-        '/arriba_v1.1.0/run_arriba.sh',
+        '/usr/local/src/arriba_v1.2.0/run_arriba.sh',
         '/star_index',
         '/annotation',
         '/assembly',
-        '/arriba_v1.1.0/database/blacklist_hg38_GRCh38_2018-11-04.tsv.gz',
+        '/usr/local/src/arriba_v1.2.0/database/blacklist_hg38_GRCh38_2018-11-04.tsv.gz',
         '{left_fq}',
         '{right_fq}',
         '{threads}'
@@ -141,7 +140,7 @@ def run_arriba(
             left_fq=left_fq,
             right_fq=right_fq,
             star_index=star_index,
+            base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
             threads=os.environ.get('PARSL_CORES', 4)
         )
-    )
 
