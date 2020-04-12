@@ -36,9 +36,7 @@ ENV BIN /usr/local/bin
 ## arriba
 WORKDIR $SRC
 RUN wget -q -O - "https://github.com/suhrig/arriba/releases/download/v1.2.0/arriba_v1.2.0.tar.gz" | tar -xzf -
--O bowtie-1.2.1.1-linux-x86_64.zip && \
-        unzip bowtie-1.2.1.1-linux-x86_64.zip && \
-	mv bowtie-1.2.1.1/bowtie* $BIN
+# ln -s $SRC/arriba_ 
 
 
 ## bowtie
@@ -81,16 +79,16 @@ RUN wget https://github.com/samtools/samtools/releases/download/1.7/samtools-1.7
 
 
 ## RSEM
-RUN mkdir /usr/local/lib/site_perl
-WORKDIR $SRC
-RUN wget https://github.com/deweylab/RSEM/archive/v1.3.3.tar.gz && \
-	 tar xvf v1.3.3.tar.gz && \
-     cd RSEM-1.3.3 && \
-     make && \
-     cp rsem-* $BIN && \
-     cp convert-sam-for-rsem $BIN && \
-     cp rsem_perl_utils.pm /usr/local/lib/site_perl/ && \
-     cd ../ && rm -r RSEM-1.3.3
+# RUN mkdir /usr/local/lib/site_perl
+# WORKDIR $SRC
+# RUN wget https://github.com/deweylab/RSEM/archive/v1.3.3.tar.gz && \
+# 	 tar xvf v1.3.3.tar.gz && \
+#      cd RSEM-1.3.3 && \
+#      make && \
+#      cp rsem-* $BIN && \
+#      cp convert-sam-for-rsem $BIN && \
+#      cp rsem_perl_utils.pm /usr/local/lib/site_perl/ && \
+#      cd ../ && rm -r RSEM-1.3.3
 
 
 ## salmon
@@ -148,6 +146,7 @@ WORKDIR $SRC
 
 ENV STAR_FUSION_VERSION=1.9.0
 ENV STARF_CHECKOUT=36ed7468942d84baa44e1b973bf354d3d653d344
+ENV STAR_FUSION_HOME $SRC/STAR-Fusion
 
 RUN git clone https://github.com/STAR-Fusion/STAR-Fusion.git && \
      cd STAR-Fusion && \
@@ -156,7 +155,6 @@ RUN git clone https://github.com/STAR-Fusion/STAR-Fusion.git && \
      cd FusionInspector && \
      git submodule init && git submodule update
 
-ENV STAR_FUSION_HOME $SRC/STAR-Fusion
 
 # COPY run.sh /usr/local/bin
 # RUN chmod a+x /usr/local/bin/run.sh
