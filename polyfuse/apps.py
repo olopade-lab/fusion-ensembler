@@ -12,6 +12,7 @@ def build_star_index(
         ):
     import os
     import subprocess
+    import multiprocessing
 
     if container_type == 'docker':
         command = [
@@ -47,7 +48,7 @@ def build_star_index(
             annotation=annotation,
             image=image,
             path=path,
-            threads=os.environ.get('PARSL_CORES', 4)
+            threads=os.environ.get('PARSL_CORES', multiprocessing.cpu_count())
         ),
         shell=True
     )
@@ -94,6 +95,7 @@ def run_arriba(
         stderr=parsl.AUTO_LOGNAME,
         stdout=parsl.AUTO_LOGNAME):
     import os
+    import multiprocessing
 
 
     command = ['echo $HOSTNAME; mkdir -p {output}; cd {output}; ']
@@ -129,11 +131,10 @@ def run_arriba(
         '/usr/local/src/arriba_v1.2.0/database/blacklist_hg38_GRCh38_2018-11-04.tsv.gz',
         '{left_fq}',
         '{right_fq}',
-        '{threads}'
+        '{cores}'
     ]
 
     return ' '.join(command).format(
-            image=image,
             output=output,
             assembly=assembly,
             annotation=annotation,
@@ -141,6 +142,121 @@ def run_arriba(
             right_fq=right_fq,
             star_index=star_index,
             base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
-            threads=os.environ.get('PARSL_CORES', 4)
+            cores=os.environ.get('PARSL_CORES', multiprocessing.cpu_count())
         )
 
+# FIXME Only run STAR once
+@bash_app(cache=True)
+def run_starfusion(
+        output,
+        left_fq,
+        right_fq,
+        genome_lib,
+        container_type='docker',
+        stderr=parsl.AUTO_LOGNAME,
+        stdout=parsl.AUTO_LOGNAME):
+    import os
+    import multiprocessing
+
+
+    command = ['echo $HOSTNAME; mkdir -p {output}; ']
+    if container_type == 'docker':
+        command += [
+            'docker run',
+            '--rm',
+            '-v {left_fq}:{left_fq}:ro'
+            '-v {right_fq}:{right_fq}:ro',
+            '-v {genome_lib}:/genome_lib:ro',
+            '-v {output}:/output',
+            'olopadelab/polyfuse'
+        ]
+    elif container_type == 'singularity':
+        command += [
+            'singularity exec',
+            '-B {left_fq}:{left_fq}',
+            '-B {right_fq}:{right_fq}',
+            '-B {genome_lib}:/genome_lib',
+            '-B {output}:/output',
+            '{base_dir}/docker/polyfuse.sif'
+        ]
+    else:
+        raise RuntimeError('Container type must be either docker or singularity')
+
+    command += [
+        ' /usr/local/src/STAR-Fusion/STAR-Fusion ',
+        '--left_fq /{left_fq} ',
+        '--right_fq /{right_fq} ',
+        '--genome_lib_dir /genome_lib ',
+        '-O /output ',
+        '--FusionInspector validate ',
+        '--examine_coding_effect ',
+        '--denovo_reconstruct ',
+        '--CPU {cores}'
+    ]
+
+    return ' '.join(command).format(
+        base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
+        left_fq=left_fq,
+        right_fq=right_fq,
+        genome_lib=genome_lib,
+        output=output,
+        cores=os.environ.get('PARSL_CORES', multiprocessing.cpu_count())
+    )
+
+@bash_app(cache=True)
+def run_starseqr(
+        output,
+        left_fq,
+        right_fq,
+        genome_lib,
+        stderr=parsl.AUTO_LOGNAME,
+        stdout=parsl.AUTO_LOGNAME):
+    import os
+    import multiprocessing
+
+    command = ['echo $HOSTNAME; mkdir -p {output}; ']
+    if container_type == 'docker':
+        command += [
+            'docker run',
+            '--rm',
+            '-v {left_fq}:{left_fq}:ro'
+            '-v {right_fq}:{right_fq}:ro',
+            '-v {genoome_lib}:/genome_lib:ro',
+            '-v {output}:/output',
+            'eagenomics/starseqr:0.6.7'
+        ]
+    elif container_type == 'singularity':
+        command += [
+            'singularity exec',
+            '-B {left_fq}:{left_fq}',
+            '-B {right_fq}:{right_fq}',
+            '-B {genome_lib}:/genome_lib',
+            '-B {output}:/output',
+            '{base_dir}/docker/starseqr.sif'
+        ]
+    else:
+        raise RuntimeError('Container type must be either docker or singularity')
+
+    import os
+
+    command += [
+        'starseqr.py ',
+        '-1 {left_fq}',
+        '-2 {right_fq} ',
+        '-p /output/ss ',
+        '-i /genome_lib/ref_genome.fa.star.idx ',
+        '-g /genome_lib/ref_annot.gtf ',
+        '-r /genome_lib/ref_genome.fa ',
+        '-m 1 ',
+        '-vv',
+        '-t {cores}'
+    ]
+
+    return ' '.join(command).format(
+        output=output,
+        genoome_lib=genome_lib,
+        base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
+        left_fq=left_fq,
+        right_fq=right_fq,
+        cores=os.environ.get('PARSL_CORES', multiprocessing.cpu_count())
+    )

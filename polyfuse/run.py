@@ -9,7 +9,7 @@ import parsl
 parsl.set_stream_logger()
 
 parser = argparse.ArgumentParser()
-parser.add_argument("ctat_dir", help="")
+parser.add_argument("genome_lib", help="")
 parser.add_argument("sample_dirs", help="")
 parser.add_argument("left_fq", help="")
 parser.add_argument("right_fq", help="")
@@ -23,7 +23,7 @@ if args.config is None:
     args.config = os.path.join(base_dir, 'polyfuse', 'configs', 'local.py')
 if args.outdir is None:
     args.outdir = os.path.join(base_dir, 'data', 'processed')
-args.ctat_dir = os.path.abspath(args.ctat_dir)
+args.genome_lib = os.path.abspath(args.genome_lib)
 args.sample_dirs = os.path.abspath(args.sample_dirs)
 args.outdir = os.path.abspath(args.outdir)
 
@@ -32,19 +32,24 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 parsl.load(module.config)
 
-assembly = os.path.join(args.ctat_dir, 'ref_genome.fa')
-annotation = os.path.join(args.ctat_dir, 'ref_annot.gtf')
-star_index = os.path.join(args.ctat_dir, 'ref_genome.fa.star.idx')
+assembly = os.path.join(args.genome_lib, 'ref_genome.fa')
+annotation = os.path.join(args.genome_lib, 'ref_annot.gtf')
+star_index = os.path.join(args.genome_lib, 'ref_genome.fa.star.idx')
 
 if args.container_type == 'singularity':
-    image_path = '{base_dir}/docker/polyfuse.sif'.format(base_dir=base_dir)
-    # FIXME may require too much memory on some machines
-    if not os.path.isfile(image_path):
-        subprocess.call(
-            'singularity build {image_path} docker://olopadelab/polyfuse:latest'.format(
-                image_path=image_path
+    # TODO automate singularity hub builds from dockerhub
+    for local, remote in [
+                ('polyfuse.sif', 'docker://olopadelab/polyfuse:latest'),
+                ('starseqr.sif', 'docker://eagenomics/starseqr:0.6.7')
+            ]:
+        image_path = '{base_dir}/docker/{local}'.format(base_dir=base_dir, local=local)
+        # FIXME may require too much memory on some machines
+        if not os.path.isfile(image_path):
+            subprocess.call(
+                'singularity build {image_path} docker://{remote}'.format(
+                    image_path=image_path, remote=remote
+                )
             )
-        )
 
 sample_dirs = glob.glob(args.sample_dirs)
 for sample_dir in sample_dirs:
@@ -73,6 +78,16 @@ for sample_dir in sample_dirs:
         right_fq,
         star_index,
         container_type=args.container_type
+    )
+
+    apps.run_starfusion(
+        os.path.join(output, 'starfusion'),
+        left_fq,
+        right_fq,
+        args.genome_lib,
+        container_type=args.container_type,
+        stderr=parsl.AUTO_LOGNAME,
+        stdout=parsl.AUTO_LOGNAME
     )
 
 parsl.wait_for_current_tasks()
