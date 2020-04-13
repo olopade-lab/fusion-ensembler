@@ -71,7 +71,7 @@ def merge_lanes(fastq, base_dir, sample, tag='R1'):
         merged_fastq = '{out_dir}/merged.{tag}.fastq{ext}'.format(
             out_dir=out_dir,
             tag=tag,
-            ext='.gz' if fastq.endswith('.gz') else ''
+            ext='.gz' if glob.glob(fastq)[0].endswith('.gz') else ''
         )
         subprocess.check_output(
             'mkdir -p {out_dir}; cat {fastq} > {merged_fastq}'.format(
@@ -184,13 +184,13 @@ def run_starfusion(
 
     command += [
         ' /usr/local/src/STAR-Fusion/STAR-Fusion ',
-        '--left_fq /{left_fq} ',
-        '--right_fq /{right_fq} ',
-        '--genome_lib_dir /genome_lib ',
-        '-O /output ',
-        '--FusionInspector validate ',
-        '--examine_coding_effect ',
-        '--denovo_reconstruct ',
+        '--left_fq /{left_fq}',
+        '--right_fq /{right_fq}',
+        '--genome_lib_dir /genome_lib',
+        '-O /output',
+        '--FusionInspector validate',
+        '--examine_coding_effect',
+        '--denovo_reconstruct',
         '--CPU {cores}'
     ]
 
@@ -209,6 +209,7 @@ def run_starseqr(
         left_fq,
         right_fq,
         genome_lib,
+        container_type,
         stderr=parsl.AUTO_LOGNAME,
         stdout=parsl.AUTO_LOGNAME):
     import os
@@ -222,7 +223,7 @@ def run_starseqr(
             '-v {left_fq}:{left_fq}:ro'
             '-v {right_fq}:{right_fq}:ro',
             '-v {genoome_lib}:/genome_lib:ro',
-            '-v {output}:/output',
+            '-v {output}:/output ',
             'eagenomics/starseqr:0.6.7'
         ]
     elif container_type == 'singularity':
@@ -242,12 +243,12 @@ def run_starseqr(
     command += [
         'starseqr.py ',
         '-1 {left_fq}',
-        '-2 {right_fq} ',
-        '-p /output/ss ',
-        '-i /genome_lib/ref_genome.fa.star.idx ',
-        '-g /genome_lib/ref_annot.gtf ',
-        '-r /genome_lib/ref_genome.fa ',
-        '-m 1 ',
+        '-2 {right_fq}',
+        '-p /output/ss',
+        '-i /genome_lib/ref_genome.fa.star.idx',
+        '-g /genome_lib/ref_annot.gtf',
+        '-r /genome_lib/ref_genome.fa',
+        '-m 1',
         '-vv',
         '-t {cores}'
     ]
