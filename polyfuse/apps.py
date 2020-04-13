@@ -261,3 +261,26 @@ def run_starseqr(
         right_fq=right_fq,
         cores=os.environ.get('PARSL_CORES', multiprocessing.cpu_count())
     )
+
+@bash_app(cache=True)
+def download_fusioncatcher_build(output):
+    import os
+
+    if os.path.isfile(os.path.join(output, 'download.success')):
+        return "echo 're-using existing fusioncatcher build'"
+
+    command = """
+    mkdir -p {output}
+    cd {output}
+    wget http://sourceforge.net/projects/fusioncatcher/files/data/human_v98.tar.gz.aa
+    wget http://sourceforge.net/projects/fusioncatcher/files/data/human_v98.tar.gz.ab
+    wget http://sourceforge.net/projects/fusioncatcher/files/data/human_v98.tar.gz.ac
+    wget http://sourceforge.net/projects/fusioncatcher/files/data/human_v98.tar.gz.ad
+    cat human_v98.tar.gz.* | tar xz
+    touch download.success
+    ln -s human_v98 current
+    cd -
+    """
+
+    return command.format(output=output)
+

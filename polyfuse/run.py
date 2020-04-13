@@ -51,6 +51,10 @@ if args.container_type == 'singularity':
                 )
             )
 
+apps.download_fusioncatcher_build(
+    os.path.join(base_dir, 'data', 'external', 'ensemble')
+)
+
 sample_dirs = glob.glob(args.sample_dirs)
 for sample_dir in sample_dirs:
     sample = os.path.split(sample_dir)[-1]
