@@ -142,7 +142,7 @@ def run_arriba(
             right_fq=right_fq,
             star_index=star_index,
             base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
-            cores=os.environ.get('PARSL_CORES', multiprocessing.cpu_count())
+            cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 8)
         )
 
 # FIXME Only run STAR once
@@ -200,7 +200,7 @@ def run_starfusion(
         right_fq=right_fq,
         genome_lib=genome_lib,
         output=output,
-        cores=os.environ.get('PARSL_CORES', multiprocessing.cpu_count())
+        cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 8)
     )
 
 @bash_app(cache=True)

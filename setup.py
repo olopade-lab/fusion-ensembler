@@ -12,7 +12,7 @@ setup(
     # download_url='https://github.com/Parsl/parsl/archive/{}.tar.gz'.format(VERSION),
     include_package_data=True,
     packages=find_packages(),
-    install_requires=['parsl', 'multiprocessing'],
+    install_requires=['parsl'],
     # scripts = ['parsl/executors/high_throughput/process_worker_pool.py',
     #            'parsl/executors/extreme_scale/mpi_worker_pool.py',
     #            'parsl/executors/low_latency/lowlatency_worker.py',
