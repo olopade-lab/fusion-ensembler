@@ -145,7 +145,7 @@ def run_arriba(
             right_fq=right_fq,
             star_index=star_index,
             base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
-            cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 8)
+            cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 4)
         )
 
 # FIXME Only run STAR once
@@ -260,6 +260,7 @@ def run_starseqr(
     ]
 
     return ' '.join(command).format(
+        star_index=star_index,
         output=output,
         genome_lib=genome_lib,
         base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
