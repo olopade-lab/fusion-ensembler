@@ -32,24 +32,37 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 parsl.load(module.config)
 
-assembly = os.path.join(args.genome_lib, 'ref_genome.fa')
-annotation = os.path.join(args.genome_lib, 'ref_annot.gtf')
-star_index = os.path.join(args.genome_lib, 'ref_genome.fa.star.idx')
 
 if args.container_type == 'singularity':
     # TODO automate singularity hub builds from dockerhub
+    # TODO pin versions for all images
     for local, remote in [
-                ('polyfuse.sif', 'docker://olopadelab/polyfuse:latest'),
-                ('starseqr.sif', 'docker://eagenomics/starseqr:0.6.7')
+                ('polyfuse.sif', 'olopadelab/polyfuse:latest'),
+                ('starseqr.sif', 'eagenomics/starseqr:0.6.7'),
+                ('fusioncatcher.sif', 'olopadelab/fusioncatcher:latest'),
+                ('starfusion.sif', 'trinityctat/starfusion:1.8.0')
             ]:
         image_path = '{base_dir}/docker/{local}'.format(base_dir=base_dir, local=local)
         # FIXME may require too much memory on some machines
         if not os.path.isfile(image_path):
+            print('downloading {}'.format(image_path))
             subprocess.call(
                 'singularity build {image_path} docker://{remote}'.format(
                     image_path=image_path, remote=remote
-                )
+                ),
+                shell=True
             )
+
+assembly = os.path.join(args.genome_lib, 'ref_genome.fa')
+annotation = os.path.join(args.genome_lib, 'ref_annot.gtf')
+star_index = os.path.join(args.genome_lib, 'ref_genome.fa.star.idx')
+starseqr_star_index = apps.build_star_index(
+    assembly,
+    annotation,
+    os.path.join(args.genome_lib, 'ref_genome.fa.starseqr.star.idx'),
+    '{base_dir}/docker/starseqr.sif'.format(base_dir=base_dir) if args.container_type == 'singularity' else 'trinityctat/starfusion:1.8.0',
+    container_type=args.container_type
+)
 
 apps.download_fusioncatcher_build(
     os.path.join(base_dir, 'data', 'external', 'ensemble')
@@ -89,9 +102,24 @@ for sample_dir in sample_dirs:
         left_fq,
         right_fq,
         args.genome_lib,
-        container_type=args.container_type,
-        stderr=parsl.AUTO_LOGNAME,
-        stdout=parsl.AUTO_LOGNAME
+        container_type=args.container_type
+    )
+
+    apps.run_starseqr(
+        os.path.join(output, 'starseqr'),
+        left_fq,
+        right_fq,
+        args.genome_lib,
+        starseqr_star_index,
+        container_type=args.container_type
+    )
+
+    apps.run_fusioncatcher(
+        os.path.join(output, 'fusioncatcher'),
+        left_fq,
+        right_fq,
+        os.path.join(base_dir, 'data', 'external', 'ensemble', 'current'),
+        container_type=args.container_type
     )
 
 parsl.wait_for_current_tasks()
