@@ -159,6 +159,7 @@ def run_arriba(
         )
 
 # FIXME Only run STAR once
+# FIXME add back validation?
 @bash_app(cache=True)
 def run_starfusion(
         output,
@@ -201,9 +202,9 @@ def run_starfusion(
         '--right_fq {right_fq}',
         '--genome_lib_dir /genome_lib',
         '-O /output',
-        '--FusionInspector validate',
-        '--examine_coding_effect',
-        '--denovo_reconstruct',
+        # '--FusionInspector validate',
+        # '--examine_coding_effect',
+        # '--denovo_reconstruct',
         '--CPU {cores}'
     ]
 
