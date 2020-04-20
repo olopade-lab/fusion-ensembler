@@ -56,6 +56,7 @@ if args.container_type == 'singularity':
 assembly = os.path.join(args.genome_lib, 'ref_genome.fa')
 annotation = os.path.join(args.genome_lib, 'ref_annot.gtf')
 star_index = os.path.join(args.genome_lib, 'ref_genome.fa.star.idx')
+# if not os.path.isdir(os.path.join(args.genome_lib, 'ref_genome.fa.starseqr.star.idx')):
 starseqr_star_index = apps.build_star_index(
     assembly,
     annotation,
@@ -73,18 +74,28 @@ for sample_dir in sample_dirs:
     sample = os.path.split(sample_dir)[-1]
     output = os.path.join(args.outdir, sample)
     os.makedirs(os.path.dirname(output), exist_ok=True)
+    if (len(glob.glob(os.path.join(sample_dir, args.left_fq))) == 0) or  \
+           (len(glob.glob(os.path.join(sample_dir, args.right_fq))) == 0):
+        print('No fastqs found; skipping {}'.format(sample_dir))
+        continue
+    else:
+        print('Fastqs found for {}'.format(os.path.join(sample_dir, args.left_fq)))
 
-    left_fq = apps.merge_lanes(
-        os.path.join(sample_dir, args.left_fq),
-        base_dir,
-        sample,
-        'R1'
+    left_fq = apps.gzip(
+        apps.merge_lanes(
+            os.path.join(sample_dir, args.left_fq),
+            base_dir,
+            sample,
+            'R1'
+        )
     )
-    right_fq = apps.merge_lanes(
-        os.path.join(sample_dir, args.right_fq),
-        base_dir,
-        sample,
-        'R2'
+    right_fq = apps.gzip(
+        apps.merge_lanes(
+            os.path.join(sample_dir, args.right_fq),
+            base_dir,
+            sample,
+            'R2'
+        )
     )
 
     apps.run_arriba(

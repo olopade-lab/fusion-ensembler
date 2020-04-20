@@ -65,7 +65,7 @@ def merge_lanes(fastq, base_dir, sample, tag='R1'):
     import subprocess
 
     if len(glob.glob(fastq)) == 1:
-        return fastq
+        return glob.glob(fastq)[0]
     else:
         out_dir = '{base_dir}/data/interim/{sample}'.format(
             base_dir=base_dir,
@@ -85,6 +85,16 @@ def merge_lanes(fastq, base_dir, sample, tag='R1'):
             shell=True
         )
         return merged_fastq
+
+@python_app(cache=True)
+def gzip(fastq):
+    import subprocess
+
+    if fastq.endswith('.gz'):
+        return fastq
+    else:
+        subprocess.check_output('gzip {fastq}'.format(fastq=fastq), shell=True)
+        return fastq + '.gz'
 
 @bash_app(cache=True)
 def run_arriba(
@@ -266,7 +276,7 @@ def run_starseqr(
         base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
         left_fq=left_fq,
         right_fq=right_fq,
-        cores=os.environ.get('PARSL_CORES', multiprocessing.cpu_count())
+        cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 8)
     )
 
 @bash_app(cache=True)
