@@ -28,12 +28,12 @@ config = Config(
             worker_debug=True,
             provider=SlurmProvider(
                 'broadwl',
-                walltime='24:00:00',
+                walltime='36:00:00',
                 exclusive=False,
                 scheduler_options=scheduler_options,
                 worker_init=worker_init,
-                init_blocks=10,
-                max_blocks=10
+                init_blocks=75,
+                max_blocks=75
             ),
         )
     ],
