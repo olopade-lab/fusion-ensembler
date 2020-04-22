@@ -116,6 +116,7 @@ def merge_lanes(fastq, base_dir, sample, tag='R1'):
         )
         return merged_fastq
 
+# FIXME This should write to the interim data directory, not the input data directory.
 @python_app(cache=True)
 def gzip(fastq):
     import subprocess
