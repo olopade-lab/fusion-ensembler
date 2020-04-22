@@ -24,16 +24,17 @@ config = Config(
             # cores_per_worker=28,
             max_workers=1,
             heartbeat_threshold=360,
-            heartbeat_period=10,
+            heartbeat_period=30,
             worker_debug=True,
+            address='10.50.220.71',
             provider=SlurmProvider(
                 'broadwl',
                 walltime='36:00:00',
                 exclusive=False,
                 scheduler_options=scheduler_options,
                 worker_init=worker_init,
-                init_blocks=75,
-                max_blocks=75
+                init_blocks=70,
+                max_blocks=70
             ),
         )
     ],
@@ -41,9 +42,9 @@ config = Config(
        hub_address=address_by_hostname(),
        hub_port=55056,
        monitoring_debug=False,
-       resource_monitoring_interval=10,
+       resource_monitoring_interval=60,
    ),
     checkpoint_mode='task_exit',
     checkpoint_files=get_all_checkpoints(),
-    retries=2
+    # retries=2
 )
