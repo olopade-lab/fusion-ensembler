@@ -1,6 +1,36 @@
 import parsl
 from parsl.app.app import bash_app, python_app
 
+@python_app
+def concatenate_truth(sample_dirs, out_dir):
+    import pandas as pd
+    import glob
+    import os
+
+    truth = pd.concat([pd.read_pickle(path) for path in glob.glob(os.path.join(sample_dirs, 'truth.pkl'))])
+
+    output = '{out_dir}/truth.hdf'.format(out_dir=out_dir)
+    truth.to_hdf(output, 'truth', mode='w')
+
+    return output
+
+@python_app
+def concatenate_fusions(out_dir):
+    import pandas as pd
+    import glob
+    import os
+
+    fusions = pd.concat(
+        [
+            pd.read_pickle(f)[['fusion', 'spanning_reads', 'junction_reads', 'sample', 'caller']]
+            for f in
+            glob.glob(os.path.join(out_dir, '*', '*', 'fusions.pkl'))
+        ]
+    )
+    output = '{out_dir}/fusions.hdf'.format(out_dir=out_dir)
+    fusions.to_hdf(output, 'fusions', mode='w')
+
+    return output
 
 @python_app(cache=True)
 def build_star_index(
@@ -158,6 +188,30 @@ def run_arriba(
             cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 4)
         )
 
+
+@python_app(cache=True)
+def parse_arriba(data_dir, inputs=[]):
+    import os
+    import pandas as pd
+
+    path = os.path.join(data_dir, 'fusions.tsv')
+    sample = path.split('/')[-3]
+    caller = path.split('/')[-2]
+    data = pd.read_csv(path, sep='\t')
+    # data = data[data.confidence.str.contains('medium|high')]
+    data.rename(columns={'#gene1': 'gene1'}, inplace=True)
+    data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
+    data['junction_reads'] = data.split_reads1 + data.split_reads2
+    data['spanning_reads'] = data.discordant_mates
+    data['caller'] = caller
+    data['sample'] = sample
+
+    output = os.path.join(os.path.dirname(path), 'fusions.pkl')
+    data.to_pickle(output)
+
+    return output
+
+
 # FIXME Only run STAR once
 # FIXME add back validation?
 @bash_app(cache=True)
@@ -217,6 +271,33 @@ def run_starfusion(
         cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 8)
     )
 
+@python_app(cache=True)
+def parse_starfusion(data_dir, inputs=[]):
+    import os
+    import re
+    import pandas as pd
+
+    path = os.path.join(data_dir, 'star-fusion.fusion_predictions.tsv')
+    sample = path.split('/')[-3]
+    caller = path.split('/')[-2]
+    data = pd.read_csv(path, sep='\t')
+
+    data['breakpoint1'] = data['LeftBreakpoint'].str.rstrip('\:\+|\:\-').str.lstrip('chr')
+    data['breakpoint2'] = data['RightBreakpoint'].str.rstrip('\:\+|\:\-').str.lstrip('chr')
+    pattern = re.compile(r'\^.*')
+    data['gene1'] = data.LeftGene.str.replace(pattern, '')
+    data['gene2'] = data.RightGene.str.replace(pattern, '')
+    data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
+    data['junction_reads'] = data['JunctionReadCount']
+    data['spanning_reads'] = data['SpanningFragCount']
+    data['caller'] = caller
+    data['sample'] = sample
+
+    output = os.path.join(os.path.dirname(path), 'fusions.pkl')
+    data.to_pickle(output)
+
+    return output
+
 @bash_app(cache=True)
 def run_starseqr(
         output,
@@ -274,11 +355,43 @@ def run_starseqr(
         star_index=star_index,
         output=output,
         genome_lib=genome_lib,
-        base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
+        base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]), # FIXME allow custom outdir
         left_fq=left_fq,
         right_fq=right_fq,
         cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 8)
     )
+
+
+@python_app(cache=True)
+def parse_starseqr(data_dir, inputs=[]):
+    import os
+    import pandas as pd
+
+    path = os.path.join(data_dir, 'ss_STAR-SEQR/ss_STAR-SEQR_candidates.txt')
+    sample = path.split('/')[-3]
+    caller = path.split('/')[-2]
+    data = pd.read_csv(path, sep='\t')
+
+    data = data[data['DISPOSITION'] == 'PASS']
+    data['gene1'] = data['LEFT_SYMBOL']
+    data['gene2'] = data['RIGHT_SYMBOL']
+    data['chromosome1'] = data.BRKPT_LEFT.str.extract(pat='(^\d.*)\:\d.*\:.*')
+    data['chromosome2'] = data.BRKPT_RIGHT.str.extract(pat='(^\d.*)\:\d.*\:.*')
+    # Transformation below is because starseqr is 0-indexed while the other callers are 1-indexed
+    data['breakpoint1'] = data.BRKPT_LEFT.str.extract(pat='^\d.*\:(\d.*)\:.*').astype(float).astype('Int64') + 1
+    data.breakpoint1 = data.chromosome1 + ':' + data.breakpoint1.astype(str)
+    data['breakpoint2'] = data.BRKPT_RIGHT.str.extract(pat='^\d.*\:(\d.*)\:.*').astype(float).astype('Int64') + 1
+    data.breakpoint2 = data.chromosome2 + ':' + data.breakpoint2.astype(str)
+    data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
+    data['junction_reads'] = data.NREAD_JXNLEFT + data.NREAD_JXNRIGHT
+    data['spanning_reads'] = data.NREAD_SPANS
+    data['caller'] = caller
+    data['sample'] = sample
+
+    output = os.path.join(os.path.dirname(path), 'fusions.pkl')
+    data.to_pickle(output)
+
+    return output
 
 @bash_app(cache=True)
 def download_fusioncatcher_build(output):

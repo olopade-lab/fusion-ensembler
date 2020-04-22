@@ -98,7 +98,7 @@ for sample_dir in sample_dirs:
         )
     )
 
-    apps.run_arriba(
+    arriba = apps.run_arriba(
         os.path.join(output, 'arriba'),
         assembly,
         annotation,
@@ -107,16 +107,18 @@ for sample_dir in sample_dirs:
         star_index,
         container_type=args.container_type
     )
+    apps.parse_arriba(os.path.join(output, 'arriba'), inputs=[arriba])
 
-    apps.run_starfusion(
+    starfusion = apps.run_starfusion(
         os.path.join(output, 'starfusion'),
         left_fq,
         right_fq,
         args.genome_lib,
         container_type=args.container_type
     )
+    apps.parse_starfusion(os.path.join(output, 'starfusion'), inputs=[starfusion])
 
-    apps.run_starseqr(
+    starseqr = apps.run_starseqr(
         os.path.join(output, 'starseqr'),
         left_fq,
         right_fq,
@@ -124,6 +126,7 @@ for sample_dir in sample_dirs:
         starseqr_star_index,
         container_type=args.container_type
     )
+    apps.parse_starseqr(os.path.join(output, 'starseqr'), inputs=[starseqr])
 
     apps.run_fusioncatcher(
         os.path.join(output, 'fusioncatcher'),
@@ -134,5 +137,6 @@ for sample_dir in sample_dirs:
     )
 
 parsl.wait_for_current_tasks()
+truth = apps.concatenate_truth(args.sample_dirs, args.outdir)
 
 print('finished processing!')
