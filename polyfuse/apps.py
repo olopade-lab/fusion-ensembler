@@ -2,33 +2,66 @@ import parsl
 from parsl.app.app import bash_app, python_app
 
 @python_app
-def concatenate_truth(sample_dirs, out_dir):
+def assemble_training_data(sample, callers, out_dir):
+    import os
+    import pandas as pd
+
+    # TODO: filter before loading, to save memory?
+    caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'caller_data')
+    caller_data = caller_data[caller_data['sample'] == sample]
+    if not set(caller_data.caller.unique()).issubset(set(callers)):
+        return [], []
+
+    called_fusions = caller_data.fusion.unique() # TODO: deal with normalization
+    true_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'true_fusions')
+    true_fusions = true_fusions[true_fusions['sample'] == sample]
+
+    X_train = []
+    Y_train = []
+    for fusion in called_fusions:
+        row = []
+        for c in callers:
+            data = caller_data.loc[(caller_data.fusion == fusion) & (caller_data.caller == c), 'sum_J_S']
+            if len(data) > 0:
+                row += [data.values[0]]
+                #row += [1]
+            else:
+                row += [0]
+        X_train += [row]
+        Y_train += [1 if any(true_fusions.fusion.isin([fusion])) else 0]
+
+    return X_train, Y_train
+
+
+@python_app
+def concatenate_true_fusions(sample_dirs, out_dir):
     import pandas as pd
     import glob
     import os
 
-    truth = pd.concat([pd.read_pickle(path) for path in glob.glob(os.path.join(sample_dirs, 'truth.pkl'))])
+    true_fusions = pd.concat([pd.read_pickle(path) for path in glob.glob(os.path.join(sample_dirs, 'truth.pkl'))])
 
-    output = '{out_dir}/truth.hdf'.format(out_dir=out_dir)
-    truth.to_hdf(output, 'truth', mode='w')
+    output = '{out_dir}/true_fusions.hdf'.format(out_dir=out_dir)
+    true_fusions.to_hdf(output, 'true_fusions', mode='w')
 
     return output
 
 @python_app
-def concatenate_fusions(out_dir):
+def concatenate_caller_data(out_dir):
     import pandas as pd
     import glob
     import os
 
-    fusions = pd.concat(
+    caller_data = pd.concat(
         [
             pd.read_pickle(f)[['fusion', 'spanning_reads', 'junction_reads', 'sample', 'caller']]
             for f in
             glob.glob(os.path.join(out_dir, '*', '*', 'fusions.pkl'))
         ]
     )
-    output = '{out_dir}/fusions.hdf'.format(out_dir=out_dir)
-    fusions.to_hdf(output, 'fusions', mode='w')
+    caller_data['sum_J_S'] = caller_data['junction_reads'] + caller_data['spanning_reads']
+    output = '{out_dir}/caller_data.hdf'.format(out_dir=out_dir)
+    caller_data.to_hdf(output, 'caller_data', mode='w')
 
     return output
 
@@ -191,11 +224,11 @@ def run_arriba(
 
 
 @python_app(cache=True)
-def parse_arriba(data_dir, inputs=[]):
+def parse_arriba(out_dir, inputs=[]):
     import os
     import pandas as pd
 
-    path = os.path.join(data_dir, 'fusions.tsv')
+    path = os.path.join(out_dir, 'fusions.tsv')
     sample = path.split('/')[-3]
     caller = path.split('/')[-2]
     data = pd.read_csv(path, sep='\t')
@@ -273,12 +306,12 @@ def run_starfusion(
     )
 
 @python_app(cache=True)
-def parse_starfusion(data_dir, inputs=[]):
+def parse_starfusion(out_dir, inputs=[]):
     import os
     import re
     import pandas as pd
 
-    path = os.path.join(data_dir, 'star-fusion.fusion_predictions.tsv')
+    path = os.path.join(out_dir, 'star-fusion.fusion_predictions.tsv')
     sample = path.split('/')[-3]
     caller = path.split('/')[-2]
     data = pd.read_csv(path, sep='\t')
@@ -364,11 +397,11 @@ def run_starseqr(
 
 
 @python_app(cache=True)
-def parse_starseqr(data_dir, inputs=[]):
+def parse_starseqr(out_dir, inputs=[]):
     import os
     import pandas as pd
 
-    path = os.path.join(data_dir, 'ss_STAR-SEQR/ss_STAR-SEQR_candidates.txt')
+    path = os.path.join(out_dir, 'ss_STAR-SEQR/ss_STAR-SEQR_candidates.txt')
     sample = path.split('/')[-3]
     caller = path.split('/')[-2]
     data = pd.read_csv(path, sep='\t')
