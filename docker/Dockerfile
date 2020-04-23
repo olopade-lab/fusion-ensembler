@@ -155,6 +155,25 @@ RUN git clone https://github.com/STAR-Fusion/STAR-Fusion.git && \
      cd FusionInspector && \
      git submodule init && git submodule update
 
+## Kallisto
+WORKDIR $SRC
+RUN git clone https://github.com/pachterlab/kallisto.git && \
+    cd kallisto && \
+    git checkout ae81a86 && \
+    mkdir build && cd build && \
+    cmake .. && make && make install
+
+## Pizzly
+WORKDIR $SRC
+RUN apt update && apt install -y libz-dev python3 python3-pip; \
+	# ln -s /usr/bin/python3 /usr/local/bin/python; \
+	pip3 install h5py numpy; \
+	git clone https://github.com/pmelsted/pizzly.git; \
+	cd pizzly; \
+	git checkout 8617a24; \
+	mkdir build && cd build && cmake .. && make && make install; \
+	apt remove -y git  && apt autoclean -y  && apt autoremove -y
+
 
 # COPY run.sh /usr/local/bin
 # RUN chmod a+x /usr/local/bin/run.sh
