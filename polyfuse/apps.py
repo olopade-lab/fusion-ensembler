@@ -84,7 +84,7 @@ def build_star_index(
             '-v {output}:/output',
             '-v {assembly}:/assembly:ro',
             '-v {annotation}:/annotation:ro',
-            'trinityctat/starfusion:1.8.0'
+            'eagenomics/starseqr:0.6.7'
         ]
     elif container_type == 'singularity':
         command += [
