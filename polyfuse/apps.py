@@ -402,8 +402,8 @@ def parse_starseqr(out_dir, inputs=[]):
     import pandas as pd
 
     path = os.path.join(out_dir, 'ss_STAR-SEQR/ss_STAR-SEQR_candidates.txt')
-    sample = path.split('/')[-3]
-    caller = path.split('/')[-2]
+    sample = out_dir.split('/')[-2]
+    caller = out_dir.split('/')[-1]
     data = pd.read_csv(path, sep='\t')
 
     data = data[data['DISPOSITION'] == 'PASS']
@@ -422,7 +422,7 @@ def parse_starseqr(out_dir, inputs=[]):
     data['caller'] = caller
     data['sample'] = sample
 
-    output = os.path.join(os.path.dirname(path), 'fusions.pkl')
+    output = os.path.join(out_dir, 'fusions.pkl')
     data.to_pickle(output)
 
     return output
