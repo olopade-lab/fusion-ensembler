@@ -137,7 +137,7 @@ for sample_dir in sample_dirs:
         container_type=args.container_type
     )
 
-    quant = kallisto_quant(
+    quant = apps.kallisto_quant(
         kallisto_index,
         args.genome_lib,
         os.path.join(output, 'pizzly'),
@@ -146,7 +146,7 @@ for sample_dir in sample_dirs:
         container_type=args.container_type
     )
 
-    pizzly = run_pizzly(
+    pizzly = apps.run_pizzly(
         quant,
         args.genome_lib,
         os.path.join(output, 'pizzly'),

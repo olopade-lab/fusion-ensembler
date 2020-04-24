@@ -111,7 +111,6 @@ def build_star_index(
         ' '.join(command).format(
             assembly=assembly,
             annotation=annotation,
-            image=image,
             output=output,
             base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
             threads=os.environ.get('PARSL_CORES', multiprocessing.cpu_count())
@@ -182,7 +181,7 @@ def run_arriba(
             '--rm',
             '-v {assembly}:/assembly:ro',
             '-v {annotation}:/annotation:ro',
-            '-v {left_fq}:{left_fq}:ro'
+            '-v {left_fq}:{left_fq}:ro',
             '-v {right_fq}:{right_fq}:ro',
             '-v {star_index}:/star_index:ro',
             'olopadelab/polyfuse'
@@ -266,7 +265,7 @@ def run_starfusion(
         command += [
             'docker run',
             '--rm',
-            '-v {left_fq}:{left_fq}:ro'
+            '-v {left_fq}:{left_fq}:ro',
             '-v {right_fq}:{right_fq}:ro',
             '-v {genome_lib}:/genome_lib:ro',
             '-v {output}:/output',
@@ -285,7 +284,7 @@ def run_starfusion(
         raise RuntimeError('Container type must be either docker or singularity')
 
     command += [
-        ' /usr/local/src/STAR-Fusion/STAR-Fusion ',
+        '/usr/local/src/STAR-Fusion/STAR-Fusion',
         '--left_fq {left_fq}',
         '--right_fq {right_fq}',
         '--genome_lib_dir /genome_lib',
@@ -513,7 +512,7 @@ def kallisto_index(
     if os.path.isfile(os.path.join(genome_lib, 'kallisto_index.idx')):
         return 'echo kallisto indexing completed'
 
-    command = ['echo $HOSTNAME']
+    command = ['echo $HOSTNAME; ']
     if container_type == 'docker':
         command += [
             'docker run',
@@ -536,7 +535,6 @@ def kallisto_index(
 
     return ' '.join(command).format(
         genome_lib=genome_lib,
-        build_dir=build_dir,
         base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
     )
 
@@ -560,7 +558,7 @@ def kallisto_quant(
             '--rm',
             '-v {left_fq}:{left_fq}:ro',
             '-v {right_fq}:{right_fq}:ro',
-            '-v {genome_lib}:/genome_lib ',
+            '-v {genome_lib}:/genome_lib',
             '-v {output}:/output ',
             'olopadelab/polyfuse'
         ]
