@@ -70,7 +70,6 @@ def build_star_index(
         assembly,
         annotation,
         output,
-        image,
         container_type='docker',
         ):
     import os
@@ -85,7 +84,7 @@ def build_star_index(
             '-v {output}:/output',
             '-v {assembly}:/assembly:ro',
             '-v {annotation}:/annotation:ro',
-            '{image}'
+            'trinityctat/starfusion:1.8.0'
         ]
     elif container_type == 'singularity':
         command += [
@@ -93,7 +92,7 @@ def build_star_index(
             '-B {output}:/output',
             '-B {assembly}:/assembly',
             '-B {annotation}:/annotation ',
-            '{image}'
+            '{base_dir}/docker/starseqr.sif'
         ]
     else:
         raise RuntimeError('Container type must be either docker or singularity')
@@ -114,6 +113,7 @@ def build_star_index(
             annotation=annotation,
             image=image,
             output=output,
+            base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
             threads=os.environ.get('PARSL_CORES', multiprocessing.cpu_count())
         ),
         shell=True
