@@ -154,6 +154,6 @@ for sample_dir in sample_dirs:
     )
 
 parsl.wait_for_current_tasks()
-truth = apps.concatenate_truth(args.sample_dirs, args.outdir)
+truth = apps.concatenate_true_fusions(args.sample_dirs, args.outdir)
 
 print('finished processing!')

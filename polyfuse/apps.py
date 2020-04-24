@@ -174,7 +174,7 @@ def run_arriba(
     import multiprocessing
 
 
-    command = ['echo $HOSTNAME; mkdir -p {output}; cd {output}; ']
+    command = ['echo $HOSTNAME; mkdir -p {output}; ']
     if container_type == 'docker':
         command += [
             'docker run',
@@ -184,6 +184,7 @@ def run_arriba(
             '-v {left_fq}:{left_fq}:ro',
             '-v {right_fq}:{right_fq}:ro',
             '-v {star_index}:/star_index:ro',
+            '-v {output}:/output',
             'olopadelab/polyfuse'
         ]
     elif container_type == 'singularity':
@@ -194,12 +195,15 @@ def run_arriba(
             '-B {left_fq}:{left_fq}',
             '-B {right_fq}:{right_fq}',
             '-B {star_index}:/star_index',
+            '-B {output}:/output',
             '{base_dir}/docker/polyfuse.sif'
         ]
     else:
         raise RuntimeError('Container type must be either docker or singularity')
 
     command += [
+        '/bin/bash -c "',
+        'cd /output;',
         '/usr/local/src/arriba_v1.2.0/run_arriba.sh',
         '/star_index',
         '/annotation',
@@ -207,7 +211,7 @@ def run_arriba(
         '/usr/local/src/arriba_v1.2.0/database/blacklist_hg38_GRCh38_2018-11-04.tsv.gz',
         '{left_fq}',
         '{right_fq}',
-        '{cores}'
+        '{cores}"'
     ]
 
     return ' '.join(command).format(
@@ -218,7 +222,7 @@ def run_arriba(
             right_fq=right_fq,
             star_index=star_index,
             base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
-            cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 4)
+            cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 8)
         )
 
 
@@ -349,7 +353,7 @@ def run_starseqr(
         command += [
             'docker run',
             '--rm',
-            '-v {left_fq}:{left_fq}:ro'
+            '-v {left_fq}:{left_fq}:ro',
             '-v {right_fq}:{right_fq}:ro',
             '-v {genome_lib}:/genome_lib:ro',
             '-v {star_index}:/star_index:ro',
@@ -607,8 +611,8 @@ def run_pizzly(
         command += [
             'docker run',
             '--rm',
-            '-v {genome_lib}:/genome_lib ',
-            '-v {output}:/output ',
+            '-v {genome_lib}:/genome_lib',
+            '-v {output}:/output',
             'olopadelab/polyfuse'
         ]
     elif container_type == 'singularity':
@@ -624,11 +628,12 @@ def run_pizzly(
     command += [
         'pizzly ',
         '-k 31 ',
-        '--gtf /genome-lib/ref_annot.gtf ',
-        '--cache /genome-lib/kallisto_index.cache.txt ',
-        '--align-score 2 ',
-        '--insert-size 400 ',
-        '--fasta /genome-lib/ref_annot.cdna.fa ',
+        '--gtf /genome_lib/ref_annot.gtf',
+        '--cache /genome_lib/kallisto_index.cache.txt',
+        '--align-score 2',
+        '--insert-size 400',
+        '--fasta /genome_lib/ref_annot.cdna.fa',
+        '-o /output',
         '/output/fusion.txt'
     ]
 
