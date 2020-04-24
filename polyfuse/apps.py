@@ -465,7 +465,7 @@ def run_fusioncatcher(
         command += [
             'docker run',
             '--rm',
-            '-v {left_fq}:{left_fq}:ro'
+            '-v {left_fq}:{left_fq}:ro',
             '-v {right_fq}:{right_fq}:ro',
             '-v {build_dir}:/build_dir:ro',
             '-v {output}:/output ',
@@ -500,4 +500,142 @@ def run_fusioncatcher(
         left_fq=left_fq,
         right_fq=right_fq,
         cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 16)
+    )
+
+@bash_app(cache=True)
+def kallisto_index(
+        genome_lib,
+        container_type,
+        stderr=parsl.AUTO_LOGNAME,
+        stdout=parsl.AUTO_LOGNAME):
+    import os
+
+    if os.path.isfile(os.path.join(genome_lib, 'kallisto_index.idx')):
+        return 'echo kallisto indexing completed'
+
+    command = ['echo $HOSTNAME']
+    if container_type == 'docker':
+        command += [
+            'docker run',
+            '--rm',
+            '-v {genome_lib}:genome_lib',
+            'olopadelab/polyfuse'
+        ]
+    elif container_type == 'singularity':
+        command += [
+            'singularity exec',
+            '-B {genome_lib}:/genome_lib',
+            '{base_dir}/docker/polyfuse.sif'
+        ]
+    else:
+        raise RuntimeError('Container type must be either docker or singularity')
+
+    command += [
+        'kallisto index -i /genome_lib/kallisto_index.idx -k 31 /genome_lib/ref_annot.cdna.fa'
+    ]
+
+    return ' '.join(command).format(
+        genome_lib=genome_lib,
+        build_dir=build_dir,
+        base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
+    )
+
+
+@bash_app(cache=True)
+def kallisto_quant(
+        index,
+        genome_lib,
+        output,
+        left_fq,
+        right_fq,
+        container_type,
+        stderr=parsl.AUTO_LOGNAME,
+        stdout=parsl.AUTO_LOGNAME):
+    import os
+
+    command = ['echo $HOSTNAME; mkdir -p {output}; ']
+    if container_type == 'docker':
+        command += [
+            'docker run',
+            '--rm',
+            '-v {left_fq}:{left_fq}:ro',
+            '-v {right_fq}:{right_fq}:ro',
+            '-v {genome_lib}:/genome_lib ',
+            '-v {output}:/output ',
+            'olopadelab/polyfuse'
+        ]
+    elif container_type == 'singularity':
+        command += [
+            'singularity exec',
+            '-B {left_fq}:{left_fq}',
+            '-B {right_fq}:{right_fq}',
+            '-B {genome_lib}:/genome_lib',
+            '-B {output}:/output',
+            '{base_dir}/docker/polyfuse.sif'
+        ]
+    else:
+        raise RuntimeError('Container type must be either docker or singularity')
+
+    command += [
+        'kallisto quant',
+        '-i /genome_lib/kallisto_index.idx',
+        '--fusion',
+        '-o /output',
+        '{left_fq}',
+        '{right_fq}'
+    ]
+
+    return ' '.join(command).format(
+        output=output,
+        left_fq=left_fq,
+        right_fq=right_fq,
+        genome_lib=genome_lib,
+        base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
+    )
+
+
+@bash_app(cache=True)
+def run_pizzly(
+        quant,
+        genome_lib,
+        output,
+        container_type,
+        stderr=parsl.AUTO_LOGNAME,
+        stdout=parsl.AUTO_LOGNAME):
+    import os
+
+    command = ['echo $HOSTNAME; mkdir -p {output}; ']
+    if container_type == 'docker':
+        command += [
+            'docker run',
+            '--rm',
+            '-v {genome_lib}:/genome_lib ',
+            '-v {output}:/output ',
+            'olopadelab/polyfuse'
+        ]
+    elif container_type == 'singularity':
+        command += [
+            'singularity exec',
+            '-B {genome_lib}:/genome_lib',
+            '-B {output}:/output',
+            '{base_dir}/docker/polyfuse.sif'
+        ]
+    else:
+        raise RuntimeError('Container type must be either docker or singularity')
+
+    command += [
+        'pizzly ',
+        '-k 31 ',
+        '--gtf /genome-lib/ref_annot.gtf ',
+        '--cache /genome-lib/kallisto_index.cache.txt ',
+        '--align-score 2 ',
+        '--insert-size 400 ',
+        '--fasta /genome-lib/ref_annot.cdna.fa ',
+        '/output/fusion.txt'
+    ]
+
+    return ' '.join(command).format(
+        output=output,
+        genome_lib=genome_lib,
+        base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
     )

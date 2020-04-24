@@ -61,9 +61,10 @@ starseqr_star_index = apps.build_star_index(
     assembly,
     annotation,
     os.path.join(args.genome_lib, 'ref_genome.fa.starseqr.star.idx'),
-    '{base_dir}/docker/starseqr.sif'.format(base_dir=base_dir) if args.container_type == 'singularity' else 'trinityctat/starfusion:1.8.0',
     container_type=args.container_type
 )
+
+kallisto_index = apps.kallisto_index(args.genome_lib, args.container_type)
 
 apps.download_fusioncatcher_build(
     os.path.join(base_dir, 'data', 'external', 'ensemble')
@@ -133,6 +134,22 @@ for sample_dir in sample_dirs:
         left_fq,
         right_fq,
         os.path.join(base_dir, 'data', 'external', 'ensemble', 'current'),
+        container_type=args.container_type
+    )
+
+    quant = kallisto_quant(
+        kallisto_index,
+        args.genome_lib,
+        os.path.join(output, 'pizzly'),
+        left_fq,
+        right_fq,
+        container_type=args.container_type
+    )
+
+    pizzly = run_pizzly(
+        quant,
+        args.genome_lib,
+        os.path.join(output, 'pizzly'),
         container_type=args.container_type
     )
 
