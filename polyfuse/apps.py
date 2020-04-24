@@ -517,7 +517,7 @@ def kallisto_index(
         command += [
             'docker run',
             '--rm',
-            '-v {genome_lib}:genome_lib',
+            '-v {genome_lib}:/genome_lib',
             'olopadelab/polyfuse'
         ]
     elif container_type == 'singularity':
