@@ -38,6 +38,7 @@ if args.container_type == 'singularity':
     # TODO pin versions for all images
     for local, remote in [
                 ('polyfuse.sif', 'olopadelab/polyfuse:latest'),
+                ('pizzly.sif', 'olopadelab/pizzly:latest'),
                 ('starseqr.sif', 'eagenomics/starseqr:0.6.7'),
                 ('fusioncatcher.sif', 'olopadelab/fusioncatcher:latest'),
                 ('starfusion.sif', 'trinityctat/starfusion:1.8.0')

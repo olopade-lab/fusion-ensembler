@@ -638,14 +638,14 @@ def run_pizzly(
             '--rm',
             '-v {genome_lib}:/genome_lib',
             '-v {output}:/output',
-            'olopadelab/polyfuse'
+            'olopadelab/pizzly'
         ]
     elif container_type == 'singularity':
         command += [
             'singularity exec',
             '-B {genome_lib}:/genome_lib',
             '-B {output}:/output',
-            '{base_dir}/docker/polyfuse.sif'
+            '{base_dir}/docker/pizzly.sif'
         ]
     else:
         raise RuntimeError('Container type must be either docker or singularity')
