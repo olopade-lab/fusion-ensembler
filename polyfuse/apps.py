@@ -226,7 +226,7 @@ def run_arriba(
         )
 
 
-@python_app(cache=True)
+@python_app
 def parse_arriba(out_dir, inputs=[]):
     import os
     import pandas as pd
@@ -308,7 +308,7 @@ def run_starfusion(
         cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 8)
     )
 
-@python_app(cache=True)
+@python_app
 def parse_starfusion(out_dir, inputs=[]):
     import os
     import re
@@ -399,7 +399,7 @@ def run_starseqr(
     )
 
 
-@python_app(cache=True)
+@python_app
 def parse_starseqr(out_dir, inputs=[]):
     import os
     import pandas as pd
