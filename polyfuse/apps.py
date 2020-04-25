@@ -505,6 +505,31 @@ def run_fusioncatcher(
         cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 16)
     )
 
+@python_app
+def parse_fusioncatcher(out_dir, inputs=[]):
+    import os
+    import pandas as pd
+
+    path = os.path.join(out_dir, 'final-list_candidate-fusion-genes.txt')
+    sample = path.split('/')[-3]
+    caller = path.split('/')[-2]
+
+    data = pd.read_csv(path, sep='\t')
+    data.rename(columns={'Gene_1_symbol(5end_fusion_partner)': 'gene1', 'Gene_2_symbol(3end_fusion_partner)': 'gene2'},
+            inplace=True)
+    data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
+    data['spanning_reads'] = data['Spanning_pairs']
+    data['junction_reads'] = data['Spanning_unique_reads']
+
+    data['caller'] = caller
+    data['sample'] = sample
+
+    output = os.path.join(os.path.dirname(path), 'fusions.pkl')
+    data.to_pickle(output)
+
+    return output
+
+
 @bash_app(cache=True)
 def kallisto_index(
         genome_lib,

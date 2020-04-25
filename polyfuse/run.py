@@ -129,13 +129,14 @@ for sample_dir in sample_dirs:
     )
     apps.parse_starseqr(os.path.join(output, 'starseqr'), inputs=[starseqr])
 
-    apps.run_fusioncatcher(
+    fusioncatcher = apps.run_fusioncatcher(
         os.path.join(output, 'fusioncatcher'),
         left_fq,
         right_fq,
         os.path.join(base_dir, 'data', 'external', 'ensemble', 'current'),
         container_type=args.container_type
     )
+    apps.parse_fusioncatcher(os.path.join(output, 'fusioncatcher'), inputs=[fusioncatcher])
 
     quant = apps.kallisto_quant(
         kallisto_index,
