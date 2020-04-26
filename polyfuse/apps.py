@@ -240,6 +240,34 @@ def run_arriba(
 
 
 @python_app
+def parse_pizzly(out_dir, inputs=[]):
+    import os
+    import pandas as pd
+    import json
+
+    path = os.path.join(out_dir, 'out.json')
+    if not os.path.exists(path):
+        return None
+    sample = path.split('/')[-3]
+    caller = path.split('/')[-2]
+    with open(path, 'r') as f:
+        json_data = json.load(f)['genes']
+
+    data = pd.DataFrame(columns=[])
+    data['gene1'] = [gf['geneA']['name'] for gf in json_data]
+    data['gene2'] = [gf['geneA']['name'] for gf in json_data]
+    data['junction_reads'] = [gf['paircount'] for gf in json_data]
+    data['spanning_reads'] = [gf['splitcount'] for gf in json_data]
+    data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
+    data['caller'] = caller
+    data['sample'] = sample
+
+    output = os.path.join(os.path.dirname(path), 'fusions.pkl')
+    data.to_pickle(output)
+
+    return output
+
+@python_app
 def parse_arriba(out_dir, inputs=[]):
     import os
     import pandas as pd
