@@ -273,6 +273,8 @@ def parse_arriba(out_dir, inputs=[]):
     import pandas as pd
 
     path = os.path.join(out_dir, 'fusions.tsv')
+    if not os.path.exists(path):
+        return None
     sample = path.split('/')[-3]
     caller = path.split('/')[-2]
     data = pd.read_csv(path, sep='\t')
@@ -356,6 +358,9 @@ def parse_starfusion(out_dir, inputs=[]):
     import pandas as pd
 
     path = os.path.join(out_dir, 'star-fusion.fusion_predictions.tsv')
+    if not os.path.exists(path):
+        return None
+
     sample = path.split('/')[-3]
     caller = path.split('/')[-2]
     data = pd.read_csv(path, sep='\t')
@@ -446,6 +451,8 @@ def parse_starseqr(out_dir, inputs=[]):
     import pandas as pd
 
     path = os.path.join(out_dir, 'ss_STAR-SEQR/ss_STAR-SEQR_candidates.txt')
+    if not os.path.exists(path):
+        return None
     sample = out_dir.split('/')[-2]
     caller = out_dir.split('/')[-1]
     data = pd.read_csv(path, sep='\t')
@@ -552,6 +559,8 @@ def parse_fusioncatcher(out_dir, inputs=[]):
     import pandas as pd
 
     path = os.path.join(out_dir, 'final-list_candidate-fusion-genes.txt')
+    if not os.path.exists(path):
+        return None
     sample = path.split('/')[-3]
     caller = path.split('/')[-2]
 
