@@ -9,7 +9,7 @@ def assemble_data(sample, callers, out_dir):
     # TODO: filter before loading, to save memory?
     caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'caller_data')
     caller_data = caller_data[caller_data['sample'] == sample]
-    if not set(caller_data.caller.unique()).issubset(set(callers)):
+    if not set(caller_data.caller.unique()) == set(callers):
         return [], []
 
     called_fusions = caller_data.fusion.unique() # TODO: deal with normalization
