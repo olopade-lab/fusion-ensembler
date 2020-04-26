@@ -457,7 +457,7 @@ def parse_starseqr(out_dir, inputs=[]):
     caller = out_dir.split('/')[-1]
     data = pd.read_csv(path, sep='\t')
 
-    data = data[data['DISPOSITION'] == 'PASS']
+    # data = data[data['DISPOSITION'] == 'PASS']
     data['gene1'] = data['LEFT_SYMBOL']
     data['gene2'] = data['RIGHT_SYMBOL']
     data['chromosome1'] = data.BRKPT_LEFT.str.extract(pat='(^\d.*)\:\d.*\:.*')
