@@ -2,7 +2,7 @@ import parsl
 from parsl.app.app import bash_app, python_app
 
 @python_app
-def assemble_training_data(sample, callers, out_dir):
+def assemble_data(sample, callers, out_dir):
     import os
     import pandas as pd
 
@@ -16,8 +16,8 @@ def assemble_training_data(sample, callers, out_dir):
     true_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'true_fusions')
     true_fusions = true_fusions[true_fusions['sample'] == sample]
 
-    X_train = []
-    Y_train = []
+    X = []
+    Y = []
     for fusion in called_fusions:
         row = []
         for c in callers:
@@ -27,10 +27,10 @@ def assemble_training_data(sample, callers, out_dir):
                 #row += [1]
             else:
                 row += [0]
-        X_train += [row]
-        Y_train += [1 if any(true_fusions.fusion.isin([fusion])) else 0]
+        X += [row]
+        Y += [1 if any(true_fusions.fusion.isin([fusion])) else 0]
 
-    return X_train, Y_train
+    return X, Y
 
 
 @python_app
