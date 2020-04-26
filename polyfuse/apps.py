@@ -47,15 +47,26 @@ def concatenate_true_fusions(sample_dirs, out_dir):
 
     return output
 
+def parse_caller_data(out_dir, callers):
+    import os
+    import glob
+
+    parsers = dict((c, globals()['parse_{}'.format(c)]) for c in callers)
+    futures = []
+    for c in callers:
+        futures += [parsers[c](d) for d in glob.glob(os.path.join(out_dir, '*', c))]
+
+    return futures
+
 @python_app
-def concatenate_caller_data(out_dir):
+def concatenate_caller_data(out_dir, inputs=[]):
     import pandas as pd
     import glob
     import os
 
     caller_data = pd.concat(
         [
-            pd.read_pickle(f)[['fusion', 'spanning_reads', 'junction_reads', 'sample', 'caller']]
+            pd.read_pickle(f)[['fusion', 'spanning_reads', 'junction_reads', 'sample', 'caller', 'gene1', 'gene2']]
             for f in
             glob.glob(os.path.join(out_dir, '*', '*', 'fusions.pkl'))
         ]
