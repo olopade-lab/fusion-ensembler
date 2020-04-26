@@ -40,6 +40,7 @@ def concatenate_true_fusions(sample_dirs, out_dir):
     import os
 
     true_fusions = pd.concat([pd.read_pickle(path) for path in glob.glob(os.path.join(sample_dirs, 'truth.pkl'))])
+    true_fusions['fusion'] = true_fusions[['left_gene_name', 'right_gene_name']].apply(lambda x: '--'.join(sorted([str(i) for i in x])), axis=1) # FIXME
 
     output = '{out_dir}/true_fusions.hdf'.format(out_dir=out_dir)
     true_fusions.to_hdf(output, 'true_fusions', mode='w')
@@ -59,6 +60,7 @@ def concatenate_caller_data(out_dir):
             glob.glob(os.path.join(out_dir, '*', '*', 'fusions.pkl'))
         ]
     )
+    caller_data['fusion'] = caller_data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1) # FIXME
     caller_data['sum_J_S'] = caller_data['junction_reads'] + caller_data['spanning_reads']
     output = '{out_dir}/caller_data.hdf'.format(out_dir=out_dir)
     caller_data.to_hdf(output, 'caller_data', mode='w')
