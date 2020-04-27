@@ -135,24 +135,21 @@ def build_star_index(
 
 
 @python_app(cache=True)
-def merge_lanes(fastq, base_dir, sample, tag='R1'):
+def merge_lanes(fastq, out_dir, sample, tag='R1'):
     import glob
     import subprocess
 
     if len(glob.glob(fastq)) == 1:
         return glob.glob(fastq)[0]
     else:
-        out_dir = '{base_dir}/data/interim/{sample}'.format(
-            base_dir=base_dir,
-            sample=sample
-        )
-        merged_fastq = '{out_dir}/merged.{tag}.fastq{ext}'.format(
+        merged_fastq = '{out_dir}/interim/{sample}/merged.{tag}.fastq{ext}'.format(
             out_dir=out_dir,
             tag=tag,
             ext='.gz' if glob.glob(fastq)[0].endswith('.gz') else ''
         )
         subprocess.check_output(
-            'mkdir -p {out_dir}; cat {fastq} > {merged_fastq}'.format(
+            'mkdir -p {dirname}; cat {fastq} > {merged_fastq}'.format(
+                dirname=os.path.dirname(merged_fastq),
                 out_dir=out_dir,
                 fastq=fastq,
                 merged_fastq=merged_fastq
@@ -161,16 +158,22 @@ def merge_lanes(fastq, base_dir, sample, tag='R1'):
         )
         return merged_fastq
 
-# FIXME This should write to the interim data directory, not the input data directory.
 @python_app(cache=True)
-def gzip(fastq):
+def gzip(fastq, out_dir):
     import subprocess
 
     if fastq.endswith('.gz'):
         return fastq
     else:
-        subprocess.check_output('gzip {fastq}'.format(fastq=fastq), shell=True)
-        return fastq + '.gz'
+        dirname = '{out_dir}/interim/{sample}'.format(
+            out_dir=out_dir,
+            sample=sample
+        )
+        subprocess.check_output('mkdir -p {dirname}; gzip {fastq}; mv {fastq}.gz {dirname}'.format(
+            fastq=fastq,
+            dirname=dirname), shell=True
+        )
+        return os.path.join(dirname, os.path.basename(fastq) + '.gz')
 
 @bash_app(cache=True)
 def run_arriba(

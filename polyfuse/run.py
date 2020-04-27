@@ -22,7 +22,7 @@ base_dir = '/'.join(os.path.abspath(__file__).split('/')[:-2])
 if args.config is None:
     args.config = os.path.join(base_dir, 'polyfuse', 'configs', 'local.py')
 if args.outdir is None:
-    args.outdir = os.path.join(base_dir, 'data', 'processed')
+    args.outdir = os.path.join(base_dir, 'data')
 args.genome_lib = os.path.abspath(args.genome_lib)
 args.sample_dirs = os.path.abspath(args.sample_dirs)
 args.outdir = os.path.abspath(args.outdir)
@@ -68,13 +68,13 @@ starseqr_star_index = apps.build_star_index(
 kallisto_index = apps.kallisto_index(args.genome_lib, args.container_type)
 
 apps.download_fusioncatcher_build(
-    os.path.join(base_dir, 'data', 'external', 'ensemble')
+    os.path.join(args.outdir, 'external', 'ensemble')
 )
 
 sample_dirs = glob.glob(args.sample_dirs)
 for sample_dir in sample_dirs:
     sample = os.path.split(sample_dir)[-1]
-    output = os.path.join(args.outdir, sample)
+    output = os.path.join(args.outdir, 'processed', sample)
     os.makedirs(os.path.dirname(output), exist_ok=True)
     if (len(glob.glob(os.path.join(sample_dir, args.left_fq))) == 0) or  \
            (len(glob.glob(os.path.join(sample_dir, args.right_fq))) == 0):
@@ -86,18 +86,20 @@ for sample_dir in sample_dirs:
     left_fq = apps.gzip(
         apps.merge_lanes(
             os.path.join(sample_dir, args.left_fq),
-            base_dir,
+            args.outdir,
             sample,
             'R1'
-        )
+        ),
+        args.outdir
     )
     right_fq = apps.gzip(
         apps.merge_lanes(
             os.path.join(sample_dir, args.right_fq),
-            base_dir,
+            args.outdir,
             sample,
             'R2'
-        )
+        ),
+        args.outdir
     )
 
     arriba = apps.run_arriba(
