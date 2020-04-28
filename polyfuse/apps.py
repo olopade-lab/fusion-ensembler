@@ -80,14 +80,15 @@ def concatenate_caller_data(out_dir, inputs=[]):
 
 @python_app(cache=True)
 def build_star_index(
-        assembly,
-        annotation,
-        output,
-        container_type='docker',
+        ctat_dir,
+        index_name,
+        container_type='docker'
         ):
     import os
     import subprocess
     import multiprocessing
+
+    output = os.path.join(ctat_dir, index_name)
 
     command = ['mkdir -p {output};']
     if container_type == 'docker':
@@ -95,16 +96,16 @@ def build_star_index(
             'docker run',
             '--rm',
             '-v {output}:/output',
-            '-v {assembly}:/assembly:ro',
-            '-v {annotation}:/annotation:ro',
+            '-v {ctat_dir}/ref_genome.fa:/assembly:ro',
+            '-v {ctat_dir}/ref_annot.gtf:/annotation:ro',
             'eagenomics/starseqr:0.6.7'
         ]
     elif container_type == 'singularity':
         command += [
             'singularity exec',
             '-B {output}:/output',
-            '-B {assembly}:/assembly',
-            '-B {annotation}:/annotation ',
+            '-B {ctat_dir}/ref_genome.fa:/assembly',
+            '-B {ctat_dir}/ref_annot.gtf:/annotation',
             '{base_dir}/docker/starseqr.sif'
         ]
     else:
@@ -122,8 +123,7 @@ def build_star_index(
 
     subprocess.check_output(
         ' '.join(command).format(
-            assembly=assembly,
-            annotation=annotation,
+            ctat_dir=ctat_dir,
             output=output,
             base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
             threads=os.environ.get('PARSL_CORES', multiprocessing.cpu_count())
@@ -178,11 +178,9 @@ def gzip(fastq, out_dir):
 @bash_app(cache=True)
 def run_arriba(
         output,
-        assembly,
-        annotation,
+        ctat_dir,
         left_fq,
         right_fq,
-        star_index,
         container_type='docker',
         stderr=parsl.AUTO_LOGNAME,
         stdout=parsl.AUTO_LOGNAME):
@@ -195,22 +193,22 @@ def run_arriba(
         command += [
             'docker run',
             '--rm',
-            '-v {assembly}:/assembly:ro',
-            '-v {annotation}:/annotation:ro',
+            '-v {ctat_dir}/ref_genome.fa:/assembly:ro',
+            '-v {ctat_dir}/ref_annot.gtf:/annotation:ro',
             '-v {left_fq}:{left_fq}:ro',
             '-v {right_fq}:{right_fq}:ro',
-            '-v {star_index}:/star_index:ro',
+            '-v {ctat_dir}/ref_genome.fa.star.idx:/star_index:ro',
             '-v {output}:/output',
             'olopadelab/polyfuse'
         ]
     elif container_type == 'singularity':
         command += [
             'singularity exec',
-            '-B {assembly}:/assembly',
-            '-B {annotation}:/annotation',
+            '-B {ctat_dir}/ref_genome.fa:/assembly',
+            '-B {ctat_dir}/ref_annot.gtf:/annotation',
             '-B {left_fq}:{left_fq}',
             '-B {right_fq}:{right_fq}',
-            '-B {star_index}:/star_index',
+            '-B {ctat_dir}/ref_genome.fa.star.idx:/star_index',
             '-B {output}:/output',
             '{base_dir}/docker/polyfuse.sif'
         ]
@@ -232,11 +230,9 @@ def run_arriba(
 
     return ' '.join(command).format(
             output=output,
-            assembly=assembly,
-            annotation=annotation,
+            ctat_dir=ctat_dir,
             left_fq=left_fq,
             right_fq=right_fq,
-            star_index=star_index,
             base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
             cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 8)
         )
@@ -302,7 +298,7 @@ def run_starfusion(
         output,
         left_fq,
         right_fq,
-        genome_lib,
+        ctat_dir,
         container_type='docker',
         stderr=parsl.AUTO_LOGNAME,
         stdout=parsl.AUTO_LOGNAME):
@@ -317,7 +313,7 @@ def run_starfusion(
             '--rm',
             '-v {left_fq}:{left_fq}:ro',
             '-v {right_fq}:{right_fq}:ro',
-            '-v {genome_lib}:/genome_lib:ro',
+            '-v {ctat_dir}:/ctat_dir:ro',
             '-v {output}:/output',
             'trinityctat/starfusion:1.8.0'
         ]
@@ -326,7 +322,7 @@ def run_starfusion(
             'singularity exec',
             '-B {left_fq}:{left_fq}',
             '-B {right_fq}:{right_fq}',
-            '-B {genome_lib}:/genome_lib',
+            '-B {ctat_dir}:/ctat_dir',
             '-B {output}:/output',
             '{base_dir}/docker/starfusion.sif'
         ]
@@ -337,7 +333,7 @@ def run_starfusion(
         '/usr/local/src/STAR-Fusion/STAR-Fusion',
         '--left_fq {left_fq}',
         '--right_fq {right_fq}',
-        '--genome_lib_dir /genome_lib',
+        '--genome_lib_dir /ctat_dir',
         '-O /output',
         # '--FusionInspector validate',
         # '--examine_coding_effect',
@@ -349,7 +345,7 @@ def run_starfusion(
         base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
         left_fq=left_fq,
         right_fq=right_fq,
-        genome_lib=genome_lib,
+        ctat_dir=ctat_dir,
         output=output,
         cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 8)
     )
@@ -389,7 +385,7 @@ def run_starseqr(
         output,
         left_fq,
         right_fq,
-        genome_lib,
+        ctat_dir,
         star_index,
         container_type,
         stderr=parsl.AUTO_LOGNAME,
@@ -404,7 +400,7 @@ def run_starseqr(
             '--rm',
             '-v {left_fq}:{left_fq}:ro',
             '-v {right_fq}:{right_fq}:ro',
-            '-v {genome_lib}:/genome_lib:ro',
+            '-v {ctat_dir}:/ctat_dir:ro',
             '-v {star_index}:/star_index:ro',
             '-v {output}:/output ',
             'eagenomics/starseqr:0.6.7'
@@ -414,7 +410,7 @@ def run_starseqr(
             'singularity exec',
             '-B {left_fq}:{left_fq}',
             '-B {right_fq}:{right_fq}',
-            '-B {genome_lib}:/genome_lib',
+            '-B {ctat_dir}:/ctat_dir',
             '-B {star_index}:/star_index:ro',
             '-B {output}:/output',
             '{base_dir}/docker/starseqr.sif'
@@ -430,8 +426,8 @@ def run_starseqr(
         '-2 {right_fq}',
         '-p /output/ss',
         '-i /star_index',
-        '-g /genome_lib/ref_annot.gtf',
-        '-r /genome_lib/ref_genome.fa',
+        '-g /ctat_dir/ref_annot.gtf',
+        '-r /ctat_dir/ref_genome.fa',
         '-m 1',
         '-vv',
         '-t {cores}'
@@ -440,7 +436,7 @@ def run_starseqr(
     return ' '.join(command).format(
         star_index=star_index,
         output=output,
-        genome_lib=genome_lib,
+        ctat_dir=ctat_dir,
         base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]), # FIXME allow custom outdir
         left_fq=left_fq,
         right_fq=right_fq,
@@ -481,12 +477,77 @@ def parse_starseqr(out_dir, inputs=[]):
 
     return output
 
-@bash_app(cache=True)
+@python_app(cache=True)
+def download_ensemble_annotation(library_dir, release):
+    import os
+    import subprocess
+
+    annotation = 'Homo_sapiens.GRCh38.{release}.gtf.gz'.format(release=release)
+
+    if os.path.isfile(os.path.join(library_dir, 'ensemble', 'download.annotation.success')):
+        return os.path.join(library_dir, 'ensemble', annotation)
+
+    command = """
+    mkdir -p {library_dir}/ensemble
+    cd {library_dir}/ensemble
+    wget ftp://ftp.ensembl.org/pub/release-{release}/gtf/homo_sapiens/{annotation}
+    touch download.annotation.success
+    cd -
+    """
+
+    subprocess.call(command.format(library_dir=library_dir, annotation=annotation, release=release), shell=True)
+
+    return os.path.join(library_dir, 'ensemble', annotation)
+
+@python_app(cache=True)
+def download_ensemble_assembly(library_dir, release):
+    import os
+    import subprocess
+
+    assembly = 'Homo_sapiens.GRCh38.cdna.all.fa.gz'
+
+    if os.path.isfile(os.path.join(library_dir, 'ensemble', 'download.assembly.success')):
+        return os.path.join(library_dir, 'ensemble', assembly)
+
+    command = """
+    mkdir -p {library_dir}/ensemble
+    cd {library_dir}/ensemble
+    wget ftp://ftp.ensembl.org/pub/release-{release}/fasta/homo_sapiens/cdna/{assembly}
+    touch download.assembly.success
+    cd -
+    """
+
+    subprocess.call(command.format(library_dir=library_dir, assembly=assembly, release=release), shell=True)
+
+    return os.path.join(library_dir, 'ensemble', assembly)
+
+@python_app(cache=True)
+def download_ctat(library_dir, ctat_release):
+    import os
+    import subprocess
+
+    if os.path.isfile(os.path.join(library_dir, ctat_release, 'download.success')):
+        return os.path.join(library_dir, ctat_release, 'ctat_genome_lib_build_dir')
+
+    command = """
+    cd {library_dir}
+    wget https://data.broadinstitute.org/Trinity/CTAT_RESOURCE_LIB/{release}.plug-n-play.tar.gz
+    tar xz {release}.plug-n-play.tar.gz
+    touch {release}.plug-n-play/download.success
+    cd -
+    """
+    subprocess.call(command.format(library_dir=library_dir, release=ctat_release), shell=True)
+
+    return os.path.join(library_dir, ctat_release + '.plug-n-play', 'ctat_genome_lib_build_dir')
+
+@python_app(cache=True)
 def download_fusioncatcher_build(output):
     import os
+    import subprocess
 
     if os.path.isfile(os.path.join(output, 'download.success')):
-        return "echo 're-using existing fusioncatcher build'"
+        return output
+
     command = """
     mkdir -p {output}
     cd {output}
@@ -499,8 +560,9 @@ def download_fusioncatcher_build(output):
     ln -s human_v98 current
     cd -
     """
+    subprocess.call(command.format(output=output), shell=True)
 
-    return command.format(output=output)
+    return output
 
 @bash_app(cache=True)
 def run_fusioncatcher(
@@ -521,7 +583,7 @@ def run_fusioncatcher(
             '--rm',
             '-v {left_fq}:{left_fq}:ro',
             '-v {right_fq}:{right_fq}:ro',
-            '-v {build_dir}:/build_dir:ro',
+            '-v {build_dir}/current:/build_dir:ro',
             '-v {output}:/output ',
             'olopadelab/fusioncatcher:latest'
         ]
@@ -530,7 +592,7 @@ def run_fusioncatcher(
             'singularity exec',
             '-B {left_fq}:{left_fq}',
             '-B {right_fq}:{right_fq}',
-            '-B {build_dir}:/build_dir',
+            '-B {build_dir}/current:/build_dir',
             '-B {output}:/output',
             '{base_dir}/docker/fusioncatcher.sif'
         ]
@@ -585,38 +647,39 @@ def parse_fusioncatcher(out_dir, inputs=[]):
 
 @bash_app(cache=True)
 def kallisto_index(
-        genome_lib,
+        fasta_path,
         container_type,
         stderr=parsl.AUTO_LOGNAME,
         stdout=parsl.AUTO_LOGNAME):
     import os
 
-    if os.path.isfile(os.path.join(genome_lib, 'kallisto_index.idx')):
-        return 'echo kallisto indexing completed'
+    # if os.path.isfile(os.path.join(genome_lib, 'kallisto_index.idx')):
+    #     return 'echo kallisto indexing completed'
 
     command = ['echo $HOSTNAME; ']
     if container_type == 'docker':
         command += [
             'docker run',
             '--rm',
-            '-v {genome_lib}:/genome_lib',
+            '-v {fasta_dir}:/fasta_dir',
             'olopadelab/polyfuse'
         ]
     elif container_type == 'singularity':
         command += [
             'singularity exec',
-            '-B {genome_lib}:/genome_lib',
+            '-B {fasta_dir}:/fasta_dir',
             '{base_dir}/docker/polyfuse.sif'
         ]
     else:
         raise RuntimeError('Container type must be either docker or singularity')
 
     command += [
-        'kallisto index -i /genome_lib/kallisto_index.idx -k 31 /genome_lib/ref_annot.cdna.fa'
+        'kallisto index -i /fasta_dir/kallisto_index.idx -k 31 /fasta_dir/{fasta}'
     ]
 
     return ' '.join(command).format(
-        genome_lib=genome_lib,
+        fasta_dir=os.path.dirname(fasta_path),
+        fasta=os.path.basename(fasta_path),
         base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
     )
 
@@ -624,7 +687,7 @@ def kallisto_index(
 @bash_app(cache=True)
 def kallisto_quant(
         index,
-        genome_lib,
+        fasta_path,
         output,
         left_fq,
         right_fq,
@@ -640,7 +703,7 @@ def kallisto_quant(
             '--rm',
             '-v {left_fq}:{left_fq}:ro',
             '-v {right_fq}:{right_fq}:ro',
-            '-v {genome_lib}:/genome_lib',
+            '-v {fasta_dir}:/fasta_dir',
             '-v {output}:/output ',
             'olopadelab/polyfuse'
         ]
@@ -649,7 +712,7 @@ def kallisto_quant(
             'singularity exec',
             '-B {left_fq}:{left_fq}',
             '-B {right_fq}:{right_fq}',
-            '-B {genome_lib}:/genome_lib',
+            '-B {fasta_dir}:/fasta_dir',
             '-B {output}:/output',
             '{base_dir}/docker/polyfuse.sif'
         ]
@@ -658,7 +721,7 @@ def kallisto_quant(
 
     command += [
         'kallisto quant',
-        '-i /genome_lib/kallisto_index.idx',
+        '-i /fasta_dir/kallisto_index.idx',
         '--fusion',
         '-o /output',
         '{left_fq}',
@@ -669,7 +732,7 @@ def kallisto_quant(
         output=output,
         left_fq=left_fq,
         right_fq=right_fq,
-        genome_lib=genome_lib,
+        fasta_dir=os.path.dirname(fasta_path),
         base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
     )
 
@@ -677,7 +740,8 @@ def kallisto_quant(
 @bash_app(cache=True)
 def run_pizzly(
         quant,
-        genome_lib,
+        gtf,
+        fasta,
         output,
         container_type,
         stderr=parsl.AUTO_LOGNAME,
@@ -689,14 +753,16 @@ def run_pizzly(
         command += [
             'docker run',
             '--rm',
-            '-v {genome_lib}:/genome_lib',
+            '-v {gtf}:{gtf}',
+            '-v {fasta}:{fasta}',
             '-v {output}:/output',
             'olopadelab/pizzly'
         ]
     elif container_type == 'singularity':
         command += [
             'singularity exec',
-            '-B {genome_lib}:/genome_lib',
+            '-B {gtf}:{gtf}',
+            '-B {fasta}:{fasta}',
             '-B {output}:/output',
             '{base_dir}/docker/pizzly.sif'
         ]
@@ -706,17 +772,18 @@ def run_pizzly(
     command += [
         'pizzly ',
         '-k 31 ',
-        '--gtf /genome_lib/ref_annot.gtf',
-        '--cache /genome_lib/kallisto_index.cache.txt',
+        '--gtf {gtf}',
+        # '--cache /genome_lib/kallisto_index.cache.txt',
         '--align-score 2',
         '--insert-size 400',
-        '--fasta /genome_lib/ref_annot.cdna.fa',
-        '-o /output',
-        '/output/fusion.txt'
+        '--fasta {fasta}',
+        '-o out',
+        '/output/fusion.txt"'
     ]
 
     return ' '.join(command).format(
         output=output,
-        genome_lib=genome_lib,
+        gtf=os.path.abspath(gtf),
+        fasta=os.path.abspath(fasta),
         base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
     )
