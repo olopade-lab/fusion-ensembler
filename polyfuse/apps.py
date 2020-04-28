@@ -756,7 +756,7 @@ def run_pizzly(
             '-v {gtf}:{gtf}',
             '-v {fasta}:{fasta}',
             '-v {output}:/output',
-            'olopadelab/pizzly'
+            'olopadelab/polyfuse:latest'
         ]
     elif container_type == 'singularity':
         command += [
@@ -764,7 +764,7 @@ def run_pizzly(
             '-B {gtf}:{gtf}',
             '-B {fasta}:{fasta}',
             '-B {output}:/output',
-            '{base_dir}/docker/pizzly.sif'
+            '{base_dir}/docker/polyfuse.sif'
         ]
     else:
         raise RuntimeError('Container type must be either docker or singularity')
