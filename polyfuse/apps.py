@@ -770,6 +770,8 @@ def run_pizzly(
         raise RuntimeError('Container type must be either docker or singularity')
 
     command += [
+        '/bin/bash -c "',
+        'cd /output;',
         'pizzly ',
         '-k 31 ',
         '--gtf {gtf}',
