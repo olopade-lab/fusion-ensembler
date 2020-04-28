@@ -7,13 +7,13 @@ def assemble_data(sample, callers, out_dir):
     import pandas as pd
 
     # TODO: filter before loading, to save memory?
-    caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'caller_data')
+    caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'data')
     caller_data = caller_data[caller_data['sample'] == sample]
     if not set(caller_data.caller.unique()) == set(callers):
         return [], []
 
     called_fusions = caller_data.fusion.unique() # TODO: deal with normalization
-    true_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'true_fusions')
+    true_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
     true_fusions = true_fusions[true_fusions['sample'] == sample]
 
     X = []
@@ -40,10 +40,11 @@ def concatenate_true_fusions(sample_dirs, out_dir):
     import os
 
     true_fusions = pd.concat([pd.read_pickle(path) for path in glob.glob(os.path.join(sample_dirs, 'truth.pkl'))])
-    true_fusions['fusion'] = true_fusions[['left_gene_name', 'right_gene_name']].apply(lambda x: '--'.join(sorted([str(i) for i in x])), axis=1) # FIXME
+    # true_fusions['fusion'] = true_fusions[['left_gene_name', 'right_gene_name']].apply(lambda x: '--'.join(sorted([str(i) for i in x])), axis=1) # FIXME
+    true_fusions['fusion'] = true_fusions[['left_gene_name', 'right_gene_name']].apply(lambda x: '--'.join([str(i) for i in x]), axis=1) # FIXME
 
     output = '{out_dir}/true_fusions.hdf'.format(out_dir=out_dir)
-    true_fusions.to_hdf(output, 'true_fusions', mode='w')
+    true_fusions.to_hdf(output, 'data', mode='w')
 
     return output
 
@@ -59,6 +60,110 @@ def parse_caller_data(out_dir, callers):
     return futures
 
 @python_app
+def predict(sample, out_dir, classifier_label, feature_indices, transformation, callers):
+    import os
+    import pandas as pd
+    import numpy as np
+    import joblib
+    from polyfuse import transformations
+
+    X = []
+    caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'data')
+    caller_data = caller_data[caller_data['sample'] == sample]
+    fusions = caller_data.fusion.unique()
+    for fusion in fusions:
+        row = []
+        for c in callers:
+            pred = caller_data.loc[(caller_data.fusion == fusion) & (caller_data.caller == c), 'sum_J_S']
+            if len(pred) > 0:
+                row += [pred.values[0]]
+            else:
+                row += [0]
+        X += [row]
+
+    X = np.array(X)
+
+    result = pd.DataFrame(columns=caller_data.columns)
+    classifier = joblib.load(os.path.join(out_dir, 'models', '{}.joblib'.format(classifier_label)))
+    Y = classifier.predict(getattr(transformations, transformation)(X[:, feature_indices]))
+    for fusion, prediction in zip(fusions, Y):
+        if prediction == 1:
+                result = result.append(
+                    caller_data[caller_data.fusion == fusion].sort_values(
+                        'sum_J_S', ascending=False
+                    ).drop_duplicates(['fusion'])
+                )
+    result['caller'] = 'polyfuse' + classifier_label
+
+    return result
+
+@python_app
+def score(sample, data_path, truth_path):
+    import pandas as pd
+    import numpy as np
+    from sklearn.metrics import average_precision_score, auc, precision_recall_curve
+
+    data = pd.read_hdf(data_path, 'data')
+    truth = pd.read_hdf(truth_path, 'data')
+    summary = pd.DataFrame(columns=['sample', 'caller', 'auc', 'average PR', 'total FP', 'total FN', 'total TP'])
+
+    summaries = []
+    for caller in data['caller'].unique():
+        cut_data = data.loc[(data['sample'] == sample) & (data['caller'] == caller)].sort_values(
+            'sum_J_S', ascending=False
+        ).drop_duplicates(['fusion'])
+
+        cut_truth = truth.loc[truth['sample'] == sample]
+
+        cut_data['TP'] = [
+            any(cut_truth.fusion.isin([fusion]))
+            for fusion
+            in cut_data.fusion.values
+        ]
+
+        cut_truth['FN'] = [
+            not any(cut_data.fusion.isin([fusion]))
+            for fusion in cut_truth.fusion
+        ]
+
+        y_score = np.hstack(
+            (cut_data.loc[cut_data.TP == True, 'sum_J_S'].to_numpy(),
+             cut_data.loc[cut_data.TP == False, 'sum_J_S'].to_numpy(),
+             np.array([-1] * len(cut_truth[cut_truth.FN == True]))
+            )
+        )
+
+        y_truth = np.hstack(
+            (np.array([1] * len(cut_data.loc[cut_data.TP == True])),
+             np.array([0] * len(cut_data.loc[cut_data.TP == False])),
+             np.array([1] * len(cut_truth[cut_truth.FN == True]))
+            )
+        )
+
+        try:
+            average_precision = average_precision_score(y_truth, y_score)
+            precision, recall, thresholds = precision_recall_curve(y_truth, y_score)
+            precision = precision[1:]
+            recall = recall[1:]
+
+            summaries += [
+                    pd.DataFrame(data={
+                        'sample': [sample],
+                        'caller': [caller],
+                        'auc': [auc(recall, precision)],
+                        'average PR': [average_precision],
+                        'total FP': [len(cut_data.loc[cut_data.TP == False])],
+                        'total FN': [len(cut_truth.loc[cut_truth.FN == True])],
+                        'total TP': [len(cut_data.loc[cut_data.TP == True])],
+                    }
+                )
+            ]
+        except ValueError:
+            continue
+
+    return pd.concat(summaries)
+
+@python_app
 def concatenate_caller_data(out_dir, inputs=[]):
     import pandas as pd
     import glob
@@ -66,15 +171,16 @@ def concatenate_caller_data(out_dir, inputs=[]):
 
     caller_data = pd.concat(
         [
-            pd.read_pickle(f)[['fusion', 'spanning_reads', 'junction_reads', 'sample', 'caller', 'gene1', 'gene2']]
+            pd.read_pickle(f)[['spanning_reads', 'junction_reads', 'sample', 'caller', 'gene1', 'gene2']]
             for f in
             glob.glob(os.path.join(out_dir, '*', '*', 'fusions.pkl'))
         ]
     )
-    caller_data['fusion'] = caller_data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1) # FIXME
+    # caller_data['fusion'] = caller_data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1) # FIXME
+    caller_data['fusion'] = caller_data[['gene1', 'gene2']].apply(lambda x: '--'.join(x), axis=1) # FIXME
     caller_data['sum_J_S'] = caller_data['junction_reads'] + caller_data['spanning_reads']
     output = '{out_dir}/caller_data.hdf'.format(out_dir=out_dir)
-    caller_data.to_hdf(output, 'caller_data', mode='w')
+    caller_data.to_hdf(output, 'data', mode='w')
 
     return output
 
@@ -257,7 +363,6 @@ def parse_pizzly(out_dir, inputs=[]):
     data['gene2'] = [gf['geneB']['name'] for gf in json_data]
     data['junction_reads'] = [gf['paircount'] for gf in json_data]
     data['spanning_reads'] = [gf['splitcount'] for gf in json_data]
-    data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
     data['caller'] = caller
     data['sample'] = sample
 
@@ -466,7 +571,7 @@ def parse_starseqr(out_dir, inputs=[]):
     data.breakpoint1 = data.chromosome1 + ':' + data.breakpoint1.astype(str)
     data['breakpoint2'] = data.BRKPT_RIGHT.str.extract(pat='^\d.*\:(\d.*)\:.*').astype(float).astype('Int64') + 1
     data.breakpoint2 = data.chromosome2 + ':' + data.breakpoint2.astype(str)
-    data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
+    # data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
     data['junction_reads'] = data.NREAD_JXNLEFT + data.NREAD_JXNRIGHT
     data['spanning_reads'] = data.NREAD_SPANS
     data['caller'] = caller
