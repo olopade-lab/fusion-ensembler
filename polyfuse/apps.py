@@ -254,7 +254,7 @@ def parse_pizzly(out_dir, inputs=[]):
 
     data = pd.DataFrame(columns=[])
     data['gene1'] = [gf['geneA']['name'] for gf in json_data]
-    data['gene2'] = [gf['geneA']['name'] for gf in json_data]
+    data['gene2'] = [gf['geneB']['name'] for gf in json_data]
     data['junction_reads'] = [gf['paircount'] for gf in json_data]
     data['spanning_reads'] = [gf['splitcount'] for gf in json_data]
     data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
