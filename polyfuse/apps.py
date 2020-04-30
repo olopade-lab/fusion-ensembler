@@ -1,23 +1,89 @@
 import parsl
 from parsl.app.app import bash_app, python_app
 
+# @python_app
+# def assemble_data(sample, callers, out_dir):
+#     import os
+#     import pandas as pd
+
+#     caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'data')
+#     caller_data = caller_data[caller_data['sample'] == sample]
+#     if not set(caller_data.caller.unique()) == set(callers):
+#         return [], []
+
+#     called_fusions = caller_data.fusion.unique() # TODO: deal with normalization
+#     true_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
+#     true_fusions = true_fusions[true_fusions['sample'] == sample]
+
+#     X = []
+#     Y = []
+#     for fusion in called_fusions:
+#         row = []
+#         for c in callers:
+#             data = caller_data.loc[(caller_data.fusion == fusion) & (caller_data.caller == c), 'sum_J_S']
+#             if len(data) > 0:
+#                 row += [data.values[0]]
+#             else:
+#                 row += [0]
+#         X += [row]
+#         Y += [1 if any(true_fusions.fusion.isin([fusion])) else 0]
+
+#     return X, Y
+
+# @python_app
+# def assemble_data(sample, callers, out_dir, y='truth'):
+#     import os
+#     import pandas as pd
+#     import numpy as np
+
+#     caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'data')
+#     caller_data = caller_data[caller_data['sample'] == sample]
+#     if not set(caller_data.caller.unique()) == set(callers):
+#         return [], []
+
+#     if y == 'truth':
+#         Y_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
+#     else:
+#         Y_fusions = caller_data[caller_data.caller == y]
+#     Y_fusions = Y_fusions[Y_fusions['sample'] == sample]
+#     fusions = caller_data.fusion.unique()
+#     # fusions = set(np.concatenate((caller_data.fusion.unique(), true_fusions.fusion.unique())))
+
+#     X = []
+#     Y = []
+#     for fusion in fusions:
+#         row = []
+#         for c in callers:
+#             data = caller_data.loc[(caller_data.fusion == fusion) & (caller_data.caller == c), 'sum_J_S']
+#             if len(data) > 0:
+#                 row += [data.values[0]]
+#             else:
+#                 row += [0]
+#         X += [row]
+#         Y += [1 if any(Y_fusions.fusion.isin([fusion])) else 0]
+
+#     return X, Y, fusions
+
+
 @python_app
 def assemble_data(sample, callers, out_dir):
     import os
     import pandas as pd
+    import numpy as np
 
     caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'data')
     caller_data = caller_data[caller_data['sample'] == sample]
     if not set(caller_data.caller.unique()) == set(callers):
         return [], []
 
-    called_fusions = caller_data.fusion.unique() # TODO: deal with normalization
+    fusions = caller_data.fusion.unique() # FIXME
     true_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
     true_fusions = true_fusions[true_fusions['sample'] == sample]
+    fusions = set(np.concatenate((caller_data.fusion.unique(), true_fusions.fusion.unique())))
 
     X = []
     Y = []
-    for fusion in called_fusions:
+    for fusion in fusions:
         row = []
         for c in callers:
             data = caller_data.loc[(caller_data.fusion == fusion) & (caller_data.caller == c), 'sum_J_S']
@@ -68,7 +134,9 @@ def predict(sample, out_dir, classifier_label, feature_indices, transformation, 
     X = []
     caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'data')
     caller_data = caller_data[caller_data['sample'] == sample]
-    fusions = caller_data.fusion.unique()
+    truth = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
+    cut_truth = truth[truth['sample'] == sample]
+    fusions = set(np.concatenate((caller_data.fusion.unique(), cut_truth.fusion.unique())))
     for fusion in fusions:
         row = []
         for c in callers:
@@ -81,22 +149,21 @@ def predict(sample, out_dir, classifier_label, feature_indices, transformation, 
 
     X = np.array(X)
 
-    result = pd.DataFrame(columns=caller_data.columns)
     classifier = joblib.load(os.path.join(out_dir, 'models', '{}.joblib'.format(classifier_label)))
-    Y = classifier.predict(getattr(transformations, transformation)(X[:, feature_indices]))
-    for fusion, prediction in zip(fusions, Y):
-        if prediction == 1:
-                result = result.append(
-                    caller_data[caller_data.fusion == fusion].sort_values(
-                        'sum_J_S', ascending=False
-                    ).drop_duplicates(['fusion'])
-                )
-    result['caller'] = 'polyfuse' + classifier_label
+    probabilities = classifier.predict_proba(getattr(transformations, transformation)(X[:, feature_indices]))[:, 1]
+    predictions = classifier.predict(getattr(transformations, transformation)(X[:, feature_indices]))
 
-    return result
+    return pd.DataFrame(data={
+            'sample': [sample for i in range(len(fusions))],
+            'caller': ['polyfuse' + classifier_label for i in range(len(fusions))],
+            'fusion': list(fusions),
+            'probability': probabilities.tolist(),
+            'prediction': predictions.tolist()
+        }
+    )
 
 @python_app
-def score(sample, data_path, truth_path):
+def make_summary_old(sample, data_path, truth_path):
     import pandas as pd
     import numpy as np
     from sklearn.metrics import average_precision_score, auc, precision_recall_curve
@@ -160,6 +227,108 @@ def score(sample, data_path, truth_path):
             continue
 
     return pd.concat(summaries)
+
+@python_app
+def score_caller(out_dir, sample, caller):
+    import pandas as pd
+    import os
+    import numpy as np
+
+    truth = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
+    cut_truth = truth[truth['sample'] == sample]
+    data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'))
+    cut_data = data.loc[(data.caller == caller) & (data['sample'] == sample)]
+    fusions = set(np.concatenate(
+        (data[data['sample'] == sample].fusion.unique(), cut_truth.fusion.unique()))
+    )
+
+    y_true = [1 if any(cut_truth.fusion.isin([f])) else 0 for f in fusions]
+    y_pred = [1 if any(cut_data.fusion.isin([f])) else 0 for f in fusions]
+    y_prob = [cut_data.loc[cut_data.fusion == f, 'sum_J_S'].values[0] if any(cut_data.fusion.isin([f])) else 0 for f in fusions]
+
+    return y_true, y_pred, y_prob
+
+@python_app
+def score_model(out_dir, sample, model):
+    import pandas as pd
+    import os
+    import numpy as np
+
+    data = pd.read_hdf(os.path.join(out_dir, 'model_data.hdf'))
+    cut_data = data.loc[(data.caller == model) & (data['sample'] == sample)]
+    truth = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'))
+    cut_truth = truth[truth['sample'] == sample]
+    fusions = set(np.concatenate((cut_data.fusion.unique(), cut_truth.fusion.unique())))
+
+    y_true = [1 if any(cut_truth.fusion.isin([f])) else 0 for f in fusions]
+    y_pred = [cut_data.loc[cut_data.fusion == f, 'prediction'].values[0] for f in fusions]
+    y_prob = [cut_data.loc[cut_data.fusion == f, 'probability'].values[0] for f in fusions]
+
+    return y_true, y_pred, y_prob
+
+def make_summary(out_dir, samples):
+    import os
+    import pandas as pd
+    import numpy as np
+    from sklearn import metrics
+
+    futures = []
+    model_data = pd.read_hdf(os.path.join(out_dir, 'model_data.hdf'))
+    for caller in model_data.caller.unique():
+        for sample in samples:
+            futures += [(score_model(out_dir, sample, caller), caller, sample)]
+
+    caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'))
+    for caller in caller_data.caller.unique():
+        for sample in samples:
+            futures += [(score_caller(out_dir, sample, caller), caller, sample)]
+
+    samples = []
+    callers = []
+    tps = []
+    fps = []
+    fns = []
+    tns = [] # FIXME not sure TN is well-defined
+    recalls = []
+    precisions = []
+    accuracies = []
+    f1s = []
+    mccs = []
+    for f, caller, sample in futures:
+        y_true, y_pred, _ = f.result()
+        cm = metrics.confusion_matrix(y_true, y_pred)
+        tn = cm[0][0]
+        fp = cm[0][1]
+        fn = cm[1][0]
+        tp = cm[1][1]
+
+        samples += [sample]
+        callers += [caller]
+        tps += [tp]
+        fps += [fp]
+        fns += [fn]
+        tns += [tn]
+        recalls += [metrics.recall_score(y_true, y_pred)]
+        precisions += [metrics.precision_score(y_true, y_pred)]
+        accuracies += [metrics.accuracy_score(y_true, y_pred)]
+        f1s += [metrics.f1_score(y_true, y_pred)]
+        mccs += [metrics.matthews_corrcoef(y_true, y_pred)]
+
+    return pd.DataFrame(data={
+        'sample': samples,
+        'caller': callers,
+        'tp': tps,
+        'fp': fps,
+        'fn': fns,
+        'tn': tns,
+        'recall': recalls,
+        'precision': precisions,
+        'accuracy': accuracies,
+        'f1': f1s,
+        'mcc': mccs
+        }
+    )
+
 
 @python_app
 def concatenate_caller_data(out_dir, inputs=[]):
