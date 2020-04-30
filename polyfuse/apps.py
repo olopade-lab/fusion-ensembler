@@ -6,7 +6,6 @@ def assemble_data(sample, callers, out_dir):
     import os
     import pandas as pd
 
-    # TODO: filter before loading, to save memory?
     caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'data')
     caller_data = caller_data[caller_data['sample'] == sample]
     if not set(caller_data.caller.unique()) == set(callers):
@@ -24,7 +23,6 @@ def assemble_data(sample, callers, out_dir):
             data = caller_data.loc[(caller_data.fusion == fusion) & (caller_data.caller == c), 'sum_J_S']
             if len(data) > 0:
                 row += [data.values[0]]
-                #row += [1]
             else:
                 row += [0]
         X += [row]
