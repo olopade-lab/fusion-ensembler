@@ -10,8 +10,8 @@ def assemble_data(sample, callers, out_dir):
 
     caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'data')
     caller_data = caller_data[caller_data['sample'] == sample]
-    if not set(caller_data.caller.unique()) == set(callers):
-        return [], []
+    # if not set(caller_data.caller.unique()) == set(callers):
+    #     return [], []
 
     fusions = caller_data.fusion.unique() # FIXME
     true_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
@@ -22,8 +22,15 @@ def assemble_data(sample, callers, out_dir):
     y = []
     for fusion in fusions:
         row = []
+        # switch to callers as columns instead of values of 'caller'
         for c in callers:
             data = caller_data.loc[(caller_data.fusion == fusion) & (caller_data.caller == c), 'sum_J_S']
+            if len(data) > 0:
+                row += [data.values[0]]
+            else:
+                row += [0]
+        for f in ['confidence']: # FIXME
+            data = caller_data.loc[(caller_data.fusion == fusion), f]
             if len(data) > 0:
                 row += [data.values[0]]
             else:
@@ -80,6 +87,12 @@ def predict(sample, out_dir, classifier_label, feature_indices, transformation, 
             pred = caller_data.loc[(caller_data.fusion == fusion) & (caller_data.caller == c), 'sum_J_S']
             if len(pred) > 0:
                 row += [pred.values[0]]
+            else:
+                row += [0]
+        for f in ['confidence']: # FIXME
+            data = caller_data.loc[(caller_data.fusion == fusion), f]
+            if len(data) > 0:
+                row += [data.values[0]]
             else:
                 row += [0]
         X += [row]
@@ -208,18 +221,32 @@ def concatenate_caller_data(out_dir, inputs=[]):
     import glob
     import os
 
+    columns = [
+        'spanning_reads',
+        'junction_reads',
+        'sample',
+        'caller',
+        'gene1',
+        'gene2',
+        'confidence',
+        'fusion',
+        'sum_J_S'
+    ]
     caller_data = pd.concat(
         [
-            pd.read_pickle(f)[['spanning_reads', 'junction_reads', 'sample', 'caller', 'gene1', 'gene2']]
+            pd.read_pickle(f) #[['spanning_reads', 'junction_reads', 'sample', 'caller', 'gene1', 'gene2']]
             for f in
             glob.glob(os.path.join(out_dir, '*', '*', 'fusions.pkl'))
-        ]
+        ],
+        ignore_index=True,
+        sort=False
     )
     # caller_data['fusion'] = caller_data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1) # FIXME
     caller_data['fusion'] = caller_data[['gene1', 'gene2']].apply(lambda x: '--'.join(x), axis=1) # FIXME
     caller_data['sum_J_S'] = caller_data['junction_reads'] + caller_data['spanning_reads']
-    output = '{out_dir}/caller_data.hdf'.format(out_dir=out_dir)
-    caller_data.to_hdf(output, 'data', mode='w')
+    output = os.path.join(out_dir, 'caller_data.hdf')
+    caller_data = caller_data.fillna(0)
+    caller_data[columns].to_hdf(output, 'data', mode='w')
 
     return output
 
@@ -426,6 +453,9 @@ def parse_arriba(out_dir, inputs=[]):
     data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
     data['junction_reads'] = data.split_reads1 + data.split_reads2
     data['spanning_reads'] = data.discordant_mates
+    data.loc[data.confidence == 'low', 'confidence'] = 1
+    data.loc[data.confidence == 'medium', 'confidence'] = 2
+    data.loc[data.confidence == 'high', 'confidence'] = 3
     data['caller'] = caller
     data['sample'] = sample
 
