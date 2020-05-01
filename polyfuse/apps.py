@@ -25,11 +25,12 @@ def assemble_data_per_sample(sample, callers, out_dir):
     for fusion in fusions:
         row = []
         for c in callers:
-            data = caller_data.loc[(caller_data.fusion == fusion) & (caller_data.caller == c), 'sum_J_S']
+            cut = (caller_data.fusion == fusion) & (caller_data.caller == c)
+            data = caller_data.loc[cut, ['spanning_reads', 'junction_reads']]
             if len(data) > 0:
-                row += [data.values[0]]
+                row += data.values[0].tolist()
             else:
-                row += [0]
+                row += [0, 0]
         for feature, _, _ in feature_info:
             view = caller_data.loc[caller_data.fusion == fusion, feature]
             index = view.first_valid_index()
@@ -38,7 +39,11 @@ def assemble_data_per_sample(sample, callers, out_dir):
         x += [row]
         y += [1 if any(true_fusions.fusion.isin([fusion])) else 0]
 
-    x = pd.DataFrame(x, columns=callers + [feature for feature, _, _ in feature_info])
+    columns = []
+    for c in callers:
+        columns += [c + '_spanning_reads', c + '_junction_reads']
+    columns += [feature for feature, _, _ in feature_info]
+    x = pd.DataFrame(x, columns=columns)
 
     for feature, prefix, categories in feature_info:
         #  transformation below is required so that one-hot encoding will still
