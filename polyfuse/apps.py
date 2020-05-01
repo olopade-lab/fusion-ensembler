@@ -1,69 +1,6 @@
 import parsl
 from parsl.app.app import bash_app, python_app
 
-# @python_app
-# def assemble_data(sample, callers, out_dir):
-#     import os
-#     import pandas as pd
-
-#     caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'data')
-#     caller_data = caller_data[caller_data['sample'] == sample]
-#     if not set(caller_data.caller.unique()) == set(callers):
-#         return [], []
-
-#     called_fusions = caller_data.fusion.unique() # TODO: deal with normalization
-#     true_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
-#     true_fusions = true_fusions[true_fusions['sample'] == sample]
-
-#     X = []
-#     Y = []
-#     for fusion in called_fusions:
-#         row = []
-#         for c in callers:
-#             data = caller_data.loc[(caller_data.fusion == fusion) & (caller_data.caller == c), 'sum_J_S']
-#             if len(data) > 0:
-#                 row += [data.values[0]]
-#             else:
-#                 row += [0]
-#         X += [row]
-#         Y += [1 if any(true_fusions.fusion.isin([fusion])) else 0]
-
-#     return X, Y
-
-# @python_app
-# def assemble_data(sample, callers, out_dir, y='truth'):
-#     import os
-#     import pandas as pd
-#     import numpy as np
-
-#     caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'data')
-#     caller_data = caller_data[caller_data['sample'] == sample]
-#     if not set(caller_data.caller.unique()) == set(callers):
-#         return [], []
-
-#     if y == 'truth':
-#         Y_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
-#     else:
-#         Y_fusions = caller_data[caller_data.caller == y]
-#     Y_fusions = Y_fusions[Y_fusions['sample'] == sample]
-#     fusions = caller_data.fusion.unique()
-#     # fusions = set(np.concatenate((caller_data.fusion.unique(), true_fusions.fusion.unique())))
-
-#     X = []
-#     Y = []
-#     for fusion in fusions:
-#         row = []
-#         for c in callers:
-#             data = caller_data.loc[(caller_data.fusion == fusion) & (caller_data.caller == c), 'sum_J_S']
-#             if len(data) > 0:
-#                 row += [data.values[0]]
-#             else:
-#                 row += [0]
-#         X += [row]
-#         Y += [1 if any(Y_fusions.fusion.isin([fusion])) else 0]
-
-#     return X, Y, fusions
-
 
 @python_app
 def assemble_data(sample, callers, out_dir):
@@ -81,8 +18,8 @@ def assemble_data(sample, callers, out_dir):
     true_fusions = true_fusions[true_fusions['sample'] == sample]
     fusions = set(np.concatenate((caller_data.fusion.unique(), true_fusions.fusion.unique())))
 
-    X = []
-    Y = []
+    x = []
+    y = []
     for fusion in fusions:
         row = []
         for c in callers:
@@ -91,10 +28,10 @@ def assemble_data(sample, callers, out_dir):
                 row += [data.values[0]]
             else:
                 row += [0]
-        X += [row]
-        Y += [1 if any(true_fusions.fusion.isin([fusion])) else 0]
+        x += [row]
+        y += [1 if any(true_fusions.fusion.isin([fusion])) else 0]
 
-    return X, Y
+    return x, y
 
 
 @python_app
