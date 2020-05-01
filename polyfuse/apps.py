@@ -30,11 +30,9 @@ def assemble_data(sample, callers, out_dir):
             else:
                 row += [0]
         for f in ['confidence']: # FIXME
-            data = caller_data.loc[(caller_data.fusion == fusion), f]
-            if len(data) > 0:
-                row += [data.values[0]]
-            else:
-                row += [0]
+            view = caller_data.loc[caller_data.fusion == fusion, f]
+            index = view.first_valid_index()
+            row += [view.loc[index] if index is not None else 0]
         x += [row]
         y += [1 if any(true_fusions.fusion.isin([fusion])) else 0]
 
@@ -90,11 +88,9 @@ def predict(sample, out_dir, classifier_label, feature_indices, transformation, 
             else:
                 row += [0]
         for f in ['confidence']: # FIXME
-            data = caller_data.loc[(caller_data.fusion == fusion), f]
-            if len(data) > 0:
-                row += [data.values[0]]
-            else:
-                row += [0]
+            view = caller_data.loc[caller_data.fusion == fusion, f]
+            index = view.first_valid_index()
+            row += [view.loc[index] if index is not None else 0]
         X += [row]
 
     X = np.array(X)
@@ -245,7 +241,7 @@ def concatenate_caller_data(out_dir, inputs=[]):
     caller_data['fusion'] = caller_data[['gene1', 'gene2']].apply(lambda x: '--'.join(x), axis=1) # FIXME
     caller_data['sum_J_S'] = caller_data['junction_reads'] + caller_data['spanning_reads']
     output = os.path.join(out_dir, 'caller_data.hdf')
-    caller_data = caller_data.fillna(0)
+    # caller_data = caller_data.fillna(0)
     caller_data[columns].to_hdf(output, 'data', mode='w')
 
     return output
