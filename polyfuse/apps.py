@@ -16,7 +16,7 @@ def assemble_data_per_sample(sample, callers, out_dir):
     fusions = caller_data.fusion.unique() # FIXME
     true_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
     true_fusions = true_fusions[true_fusions['sample'] == sample]
-    fusions = set(np.concatenate((caller_data.fusion.unique(), true_fusions.fusion.unique())))
+    fusions = list(set(np.concatenate((caller_data.fusion.unique(), true_fusions.fusion.unique()))))
 
     x = []
     y = []
@@ -78,48 +78,52 @@ def parse_caller_data(out_dir, callers):
     return futures
 
 @python_app
-def predict(sample, out_dir, classifier_label, feature_indices, transformation, callers):
+def predict_per_sample(data, sample, out_dir, classifier_label, features, transformation, callers):
     import os
     import pandas as pd
     import numpy as np
     import joblib
     from polyfuse import transformations
 
-    X = []
-    caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'data')
-    caller_data = caller_data[caller_data['sample'] == sample]
-    truth = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
-    cut_truth = truth[truth['sample'] == sample]
-    fusions = set(np.concatenate((caller_data.fusion.unique(), cut_truth.fusion.unique())))
-    for fusion in fusions:
-        row = []
-        for c in callers:
-            pred = caller_data.loc[(caller_data.fusion == fusion) & (caller_data.caller == c), 'sum_J_S']
-            if len(pred) > 0:
-                row += [pred.values[0]]
-            else:
-                row += [0]
-        for f in ['confidence']: # FIXME
-            view = caller_data.loc[caller_data.fusion == fusion, f]
-            index = view.first_valid_index()
-            row += [view.loc[index] if index is not None else 0]
-        X += [row]
-
-    X = np.array(X)
+    x, _, columns, fusions = data
+    x = pd.DataFrame(x, columns=columns)
 
     classifier = joblib.load(os.path.join(out_dir, 'models', '{}.joblib'.format(classifier_label)))
-    probabilities = classifier.predict_proba(getattr(transformations, transformation)(X[:, feature_indices]))[:, 1]
-    predictions = classifier.predict(getattr(transformations, transformation)(X[:, feature_indices]))
+    probabilities = classifier.predict_proba(getattr(transformations, transformation)(x[features]))[:, 1]
+    predictions = classifier.predict(getattr(transformations, transformation)(x[features]))
 
     return pd.DataFrame(data={
             'sample': [sample for i in range(len(fusions))],
             'caller': ['polyfuse' + classifier_label for i in range(len(fusions))],
-            'fusion': list(fusions),
+            'fusion': fusions,
             'probability': probabilities.tolist(),
             'prediction': predictions.tolist()
         }
     )
 
+
+def predict(samples, out_dir, classifiers, callers):
+    import pandas as pd
+    import os
+
+    futures = []
+    for sample in samples:
+        for features, label, transformation in classifiers:
+            sample_data = assemble_data_per_sample(sample, callers, out_dir)
+            futures += [predict_per_sample(
+                sample_data,
+                sample,
+                out_dir,
+                label,
+                features,
+                transformation,
+                callers)
+            ]
+    model_data = pd.concat([f.result() for f in futures])
+    path = os.path.join(out_dir, 'model_data.hdf')
+    model_data.to_hdf(path, 'data', mode='w')
+
+    return path
 
 @python_app
 def score_caller(out_dir, sample, caller):
