@@ -20,17 +20,17 @@ def assemble_data_per_sample(sample, callers, out_dir):
 
     x = []
     y = []
-    extra_features = ['confidence']
+    feature_info = [('confidence', 'arriba_confidence', ('high', 'medium', 'low'))]
+
     for fusion in fusions:
         row = []
-        # switch to callers as columns instead of values of 'caller'
         for c in callers:
             data = caller_data.loc[(caller_data.fusion == fusion) & (caller_data.caller == c), 'sum_J_S']
             if len(data) > 0:
                 row += [data.values[0]]
             else:
                 row += [0]
-        for feature in extra_features:
+        for feature, _, _ in feature_info:
             view = caller_data.loc[caller_data.fusion == fusion, feature]
             index = view.first_valid_index()
             row += [view.loc[index] if index is not None else 0]
@@ -38,18 +38,27 @@ def assemble_data_per_sample(sample, callers, out_dir):
         x += [row]
         y += [1 if any(true_fusions.fusion.isin([fusion])) else 0]
 
-    return x, y, callers + extra_features, fusions
+    x = pd.DataFrame(x, columns=callers + [feature for feature, _, _ in feature_info])
+
+    for feature, prefix, categories in feature_info:
+        #  transformation below is required so that one-hot encoding will still
+        #  add a column for categories, even if they do not appear in this sample
+        x[feature] = x[feature].astype(pd.api.types.CategoricalDtype(categories))
+        one_hot_encoded_columns = pd.get_dummies(x[feature], prefix=prefix, dummy_na=True)
+        x = pd.concat([x, one_hot_encoded_columns], axis=1).drop([feature], axis=1)
+
+
+    return x, y, fusions
 
 def assemble_data(samples, callers, out_dir):
     import pandas as pd
 
     data = [assemble_data_per_sample(sample, callers, out_dir) for sample in samples]
 
-    x = sum([d.result()[0] for d in data], [])
+    x = pd.concat([d.result()[0] for d in data])
     y = sum([d.result()[1] for d in data], [])
-    features = data[0].result()[2]
 
-    return pd.DataFrame(x, columns=features).fillna(0), y
+    return x, y
 
 @python_app
 def concatenate_true_fusions(sample_dirs, out_dir):
@@ -85,8 +94,7 @@ def predict_per_sample(data, sample, out_dir, classifier_label, features, transf
     import joblib
     from polyfuse import transformations
 
-    x, _, columns, fusions = data
-    x = pd.DataFrame(x, columns=columns)
+    x, _, fusions = data
 
     classifier = joblib.load(os.path.join(out_dir, 'models', '{}.joblib'.format(classifier_label)))
     probabilities = classifier.predict_proba(getattr(transformations, transformation)(x[features]))[:, 1]
@@ -94,7 +102,7 @@ def predict_per_sample(data, sample, out_dir, classifier_label, features, transf
 
     return pd.DataFrame(data={
             'sample': [sample for i in range(len(fusions))],
-            'caller': ['polyfuse' + classifier_label for i in range(len(fusions))],
+            'caller': ['Polyfuse' + classifier_label for i in range(len(fusions))],
             'fusion': fusions,
             'probability': probabilities.tolist(),
             'prediction': predictions.tolist()
@@ -465,9 +473,6 @@ def parse_arriba(out_dir, inputs=[]):
     data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
     data['junction_reads'] = data.split_reads1 + data.split_reads2
     data['spanning_reads'] = data.discordant_mates
-    data.loc[data.confidence == 'low', 'confidence'] = 1
-    data.loc[data.confidence == 'medium', 'confidence'] = 2
-    data.loc[data.confidence == 'high', 'confidence'] = 3
     data['caller'] = caller
     data['sample'] = sample
 
