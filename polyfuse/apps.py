@@ -3,7 +3,7 @@ from parsl.app.app import bash_app, python_app
 
 
 @python_app
-def assemble_data(sample, callers, out_dir):
+def assemble_data_per_sample(sample, callers, out_dir):
     import os
     import pandas as pd
     import numpy as np
@@ -20,6 +20,7 @@ def assemble_data(sample, callers, out_dir):
 
     x = []
     y = []
+    extra_features = ['confidence']
     for fusion in fusions:
         row = []
         # switch to callers as columns instead of values of 'caller'
@@ -29,15 +30,26 @@ def assemble_data(sample, callers, out_dir):
                 row += [data.values[0]]
             else:
                 row += [0]
-        for f in ['confidence']: # FIXME
-            view = caller_data.loc[caller_data.fusion == fusion, f]
+        for feature in extra_features:
+            view = caller_data.loc[caller_data.fusion == fusion, feature]
             index = view.first_valid_index()
             row += [view.loc[index] if index is not None else 0]
+
         x += [row]
         y += [1 if any(true_fusions.fusion.isin([fusion])) else 0]
 
-    return x, y
+    return x, y, callers + extra_features, fusions
 
+def assemble_data(samples, callers, out_dir):
+    import pandas as pd
+
+    data = [assemble_data_per_sample(sample, callers, out_dir) for sample in samples]
+
+    x = sum([d.result()[0] for d in data], [])
+    y = sum([d.result()[1] for d in data], [])
+    features = data[0].result()[2]
+
+    return pd.DataFrame(x, columns=features).fillna(0), y
 
 @python_app
 def concatenate_true_fusions(sample_dirs, out_dir):
