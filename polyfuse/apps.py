@@ -22,7 +22,8 @@ def assemble_data_per_sample(sample, callers, out_dir):
     y = []
     feature_info = [
         ('confidence', 'arriba_confidence', ('high', 'medium', 'low')),
-        ('reading_frame', 'arriba_reading_frame', ('out-of-frame', 'in-frame', '.'))
+        ('reading_frame', 'arriba_reading_frame', ('out-of-frame', 'in-frame', '.')),
+        ('LargeAnchorSupport', 'starfusion_large_anchor_support', ('YES_LDAS', 'NO_LDAS'))
     ]
 
     for fusion in fusions:
@@ -34,6 +35,12 @@ def assemble_data_per_sample(sample, callers, out_dir):
                 row += [1] + data.values[0].tolist()
             else:
                 row += [0, 0, 0]
+                # cut = (caller_data.fusion == fusion)
+                # data = caller_data.loc[cut, ['spanning_reads', 'junction_reads']]
+                # if len(data) > 0:
+                #     row += [0] + data.mean().values.tolist()
+                # else: # this is a true fusion that no callers identified
+                #     row += [0, 0, 0]
         for feature, _, _ in feature_info:
             view = caller_data.loc[caller_data.fusion == fusion, feature]
             index = view.first_valid_index()
@@ -258,6 +265,7 @@ def concatenate_caller_data(out_dir, inputs=[]):
         'gene2',
         'confidence',
         'reading_frame',
+        'LargeAnchorSupport',
         'fusion',
         'sum_J_S'
     ]
