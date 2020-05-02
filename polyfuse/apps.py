@@ -20,7 +20,10 @@ def assemble_data_per_sample(sample, callers, out_dir):
 
     x = []
     y = []
-    feature_info = [('confidence', 'arriba_confidence', ('high', 'medium', 'low'))]
+    feature_info = [
+        ('confidence', 'arriba_confidence', ('high', 'medium', 'low')),
+        ('reading_frame', 'arriba_reading_frame', ('out-of-frame', 'in-frame', '.'))
+    ]
 
     for fusion in fusions:
         row = []
@@ -254,6 +257,7 @@ def concatenate_caller_data(out_dir, inputs=[]):
         'gene1',
         'gene2',
         'confidence',
+        'reading_frame',
         'fusion',
         'sum_J_S'
     ]
