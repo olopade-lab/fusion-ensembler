@@ -31,9 +31,9 @@ def assemble_data_per_sample(sample, callers, out_dir):
             cut = (caller_data.fusion == fusion) & (caller_data.caller == c)
             data = caller_data.loc[cut, ['spanning_reads', 'junction_reads']]
             if len(data) > 0:
-                row += data.values[0].tolist()
+                row += [1] + data.values[0].tolist()
             else:
-                row += [0, 0]
+                row += [0, 0, 0]
         for feature, _, _ in feature_info:
             view = caller_data.loc[caller_data.fusion == fusion, feature]
             index = view.first_valid_index()
@@ -44,7 +44,7 @@ def assemble_data_per_sample(sample, callers, out_dir):
 
     columns = []
     for c in callers:
-        columns += [c + '_spanning_reads', c + '_junction_reads']
+        columns += [c + '_called', c + '_spanning_reads', c + '_junction_reads']
     columns += [feature for feature, _, _ in feature_info]
     x = pd.DataFrame(x, columns=columns)
 
