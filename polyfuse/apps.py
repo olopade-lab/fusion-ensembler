@@ -13,17 +13,20 @@ def assemble_data_per_sample(sample, callers, out_dir):
     # if not set(caller_data.caller.unique()) == set(callers):
     #     return [], []
 
-    fusions = caller_data.fusion.unique() # FIXME
     true_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
     true_fusions = true_fusions[true_fusions['sample'] == sample]
     fusions = list(set(np.concatenate((caller_data.fusion.unique(), true_fusions.fusion.unique()))))
 
     x = []
     y = []
-    feature_info = [
+    encoded_feature_info = [
         ('confidence', 'arriba_confidence', ('high', 'medium', 'low')),
-        ('reading_frame', 'arriba_reading_frame', ('out-of-frame', 'in-frame', '.')),
+        # ('reading_frame', 'arriba_reading_frame', ('out-of-frame', 'in-frame', '.')),
         ('LargeAnchorSupport', 'starfusion_large_anchor_support', ('YES_LDAS', 'NO_LDAS'))
+    ]
+    extra_features = [
+        'FFPM', 'LeftBreakEntropy', 'RightBreakEntropy',
+        'coverage1', 'coverage2'
     ]
 
     for fusion in fusions:
@@ -41,7 +44,7 @@ def assemble_data_per_sample(sample, callers, out_dir):
                 #     row += [0] + data.mean().values.tolist()
                 # else: # this is a true fusion that no callers identified
                 #     row += [0, 0, 0]
-        for feature, _, _ in feature_info:
+        for feature in [f for f, _, _ in encoded_feature_info] + extra_features:
             view = caller_data.loc[caller_data.fusion == fusion, feature]
             index = view.first_valid_index()
             row += [view.loc[index] if index is not None else 0]
@@ -52,10 +55,11 @@ def assemble_data_per_sample(sample, callers, out_dir):
     columns = []
     for c in callers:
         columns += [c + '_called', c + '_spanning_reads', c + '_junction_reads']
-    columns += [feature for feature, _, _ in feature_info]
+    columns += [feature for feature, _, _ in encoded_feature_info]
+    columns += extra_features
     x = pd.DataFrame(x, columns=columns)
 
-    for feature, prefix, categories in feature_info:
+    for feature, prefix, categories in encoded_feature_info:
         #  transformation below is required so that one-hot encoding will still
         #  add a column for categories, even if they do not appear in this sample
         x[feature] = x[feature].astype(pd.api.types.CategoricalDtype(categories))
@@ -266,6 +270,11 @@ def concatenate_caller_data(out_dir, inputs=[]):
         'confidence',
         'reading_frame',
         'LargeAnchorSupport',
+        'FFPM',
+        'LeftBreakEntropy',
+        'RightBreakEntropy',
+        'coverage1',
+        'coverage2',
         'fusion',
         'sum_J_S'
     ]
