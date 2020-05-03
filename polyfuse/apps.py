@@ -1,3 +1,5 @@
+# TODO documentation
+# TODO split into calling, modeling modules
 import parsl
 from parsl.app.app import bash_app, python_app
 
@@ -38,6 +40,7 @@ def assemble_data_per_sample(sample, callers, out_dir):
                 row += [1] + data.values[0].tolist()
             else:
                 row += [0, 0, 0]
+                # Below was an attempt to impute missing data-- did not improve performance
                 # cut = (caller_data.fusion == fusion)
                 # data = caller_data.loc[cut, ['spanning_reads', 'junction_reads']]
                 # if len(data) > 0:
@@ -312,6 +315,7 @@ def split_ref_chromosomes(
     output = os.path.join(ctat_dir, 'ref_genome.fa.chromosomes')
     os.makedirs(output, exist_ok=True)
     shutil.copy(os.path.join(ctat_dir, 'ref_genome.fa'), output)
+    shutil.copy(os.path.join(ctat_dir, 'ref_genome.fa.fai'), output)
 
     command = 'cd {output}; faidx --split-files ref_genome.fa'
 
@@ -321,6 +325,8 @@ def split_ref_chromosomes(
         ),
         shell=True
     )
+    os.unlink(os.path.join(output, 'ref_genome.fa'))
+    os.unlink(os.path.join(output, 'ref_genome.fa.fai'))
 
     return output
 
@@ -341,7 +347,7 @@ def build_bowtie_index(
         return ref_split_by_chromosome_dir
 
     chromosome_refs = glob.glob(
-        os.path.join(ref_split_by_chromosome_dir, 'chr*.fa')
+        os.path.join(ref_split_by_chromosome_dir, '*.fa')
     )
 
     command = []
@@ -373,7 +379,7 @@ def build_bowtie_index(
             ' '.join(command).format(
             ref_split_by_chromosome_dir=ref_split_by_chromosome_dir,
             chromosome_refs=','.join(chromosome_refs),
-            threads=os.environ.get('PARSL_CORES', int(multiprocessing.cpu_count() / 2))
+            threads=os.environ.get('PARSL_CORES', int(multiprocessing.cpu_count() / 1.5))
         ),
         shell=True
     )
@@ -395,7 +401,14 @@ def run_mapsplice2(
     import multiprocessing
 
 
-    command = ['echo $HOSTNAME; mkdir -p {output}; ']
+    # MapSplice does not support gzipped reads, and further does not accept stdin for the reads
+    # That is why we cannot use a pipe to provide the unzipped reads
+    command = [
+        'echo $HOSTNAME;',
+        'mkdir -p {output};',
+        'gunzip -c {left_fq} > {output}/reads_1.fq;',
+        'gunzip -c {right_fq} > {output}/reads_2.fq;',
+    ]
     if container_type == 'docker':
         command += [
             'docker run',
@@ -423,14 +436,15 @@ def run_mapsplice2(
     command += [
         'python mapsplice.py',
         '-c {ref_split_by_chromosome_dir}',
-        '-x {ref_split_by_chromosome_dir}/ref_genome.fa',
+        '-x {ctat_dir}/ref_genome.fa',
         '-1 {left_fq}',
         '-2 {right_fq}',
         '--fusion',
         '--gene-gtf {ctat_dir}/ref_annot.gtf',
         '--output {output}',
         '--bam',
-        '--threads {threads}'
+        '--threads {threads};'
+        'rm {output}/reads_1.fq {output}/reads_2.fq'
     ]
 
     return ' '.join(command).format(
@@ -440,7 +454,9 @@ def run_mapsplice2(
         left_fq=left_fq,
         right_fq=right_fq,
         base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
-        threads=os.environ.get('PARSL_CORES', multiprocessing.cpu_count())
+        threads=max(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 8)
+        # TODO Prefer not to hardcoode this max, which is tweaked for IGSB config.
+        # Need to switch to WorkQueue Parsl executor which will optimize resource packing.
     )
 
 @python_app(cache=True)
