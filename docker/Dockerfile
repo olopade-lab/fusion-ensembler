@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y gcc g++ perl python automake make \
        libcurl4-openssl-dev libx11-dev libxt-dev \
        x11-common libcairo2-dev libpng-dev libreadline-dev libjpeg-dev pkg-config libtbb-dev \
        cmake rsync libssl-dev tzdata \
+       bedtools \
        && apt-get clean
 
 
@@ -36,7 +37,6 @@ ENV BIN /usr/local/bin
 ## arriba
 WORKDIR $SRC
 RUN wget -q -O - "https://github.com/suhrig/arriba/releases/download/v1.2.0/arriba_v1.2.0.tar.gz" | tar -xzf -
-# ln -s $SRC/arriba_ 
 
 
 ## bowtie
@@ -63,6 +63,14 @@ RUN wget https://sourceforge.net/projects/bowtie-bio/files/bowtie2/2.3.4.1/bowti
     rm -r bowtie2-2.3.4.1-linux-x86_64
 
 
+## ChimPipe
+## ChimPipe expects executables to be in bin dir relative to source,
+## so only copy gemtools to bin
+WORKDIR $SRC
+RUN wget https://github.com/Chimera-tools/ChimPipe/releases/download/v0.9.6/ChimPipe-0.9.6.tar.gz && \
+    tar xzf ChimPipe* && \
+    cp $SRC/ChimPipe*/bin/gemtools*/* $BIN && \
+    rm $SRC/*tar.gz
 
 ## samtools
 RUN wget https://github.com/samtools/samtools/releases/download/1.7/samtools-1.7.tar.bz2 && \
@@ -175,10 +183,18 @@ RUN apt update && apt install -y libz-dev python3 python3-pip; \
 	apt remove -y git  && apt autoclean -y  && apt autoremove -y
 
 
+# ## MapSplice
+# ENV MAPSPLICE_VERSION  2.2.1
+# WORKDIR $SRC
+# RUN wget http://protocols.netlab.uky.edu/~zeng/MapSplice-v$MAPSPLICE_VERSION.zip \
+# 	 && unzip MapSplice-v$MAPSPLICE_VERSION.zip \
+# 	 && cd MapSplice-v$MAPSPLICE_VERSION \
+# 	 && make
+
 # COPY run.sh /usr/local/bin
 # RUN chmod a+x /usr/local/bin/run.sh
 
 # cleanup
 WORKDIR $SRC
-RUN rm -r *.tar.gz *.bz2
+RUN rm -r *.tar.gz
 RUN apt-get clean
