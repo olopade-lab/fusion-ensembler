@@ -14,9 +14,9 @@ config = Config(
             provider=SlurmProvider(
                 'daenerys',
                 nodes_per_block=1,
-                init_blocks=13,
-                max_blocks=13,
-                scheduler_options='#SBATCH --exclude=kg15-8,kg15-11', # docker: Error response from daemon: Get https://registry-1.docker.io/v2/: dial tcp: lookup registry-1.docker.io on [::1]:53: dial udp [::1]:53: connect: cannot assign requested address.
+                init_blocks=15,
+                max_blocks=15,
+                # scheduler_options='#SBATCH --exclude=kg15-8,kg15-11', # docker: Error response from daemon: Get https://registry-1.docker.io/v2/: dial tcp: lookup registry-1.docker.io on [::1]:53: dial udp [::1]:53: connect: cannot assign requested address.
                 worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages',
                 walltime='48:00:00'
             ),

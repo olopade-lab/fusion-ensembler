@@ -288,6 +288,153 @@ def concatenate_caller_data(out_dir, inputs=[]):
     return output
 
 @python_app(cache=True)
+def split_ref_chromosomes(
+        ctat_dir,
+        container_type='docker'
+        ):
+    # TODO cite Shirley MD, Ma Z, Pedersen BS, Wheelan SJ. (2015) Efficient
+    # "pythonic" access to FASTA files using pyfaidx. PeerJ PrePrints 3:e1196
+    # https://dx.doi.org/10.7287/peerj.preprints.970v1
+    # FIXME Handle case where these files exist
+    import os
+    import subprocess
+    import shutil
+
+    output = os.path.join(ctat_dir, 'ref_genome.fa.chromosomes')
+    os.makedirs(output, exist_ok=True)
+    shutil.copy(os.path.join(ctat_dir, 'ref_genome.fa'), output)
+
+    command = 'cd {output}; faidx --split-files ref_genome.fa'
+
+    subprocess.check_output(
+        command.format(
+            output=output,
+        ),
+        shell=True
+    )
+
+    return output
+
+@python_app(cache=True)
+def build_bowtie_index(
+        ref_split_by_chromosome_dir,
+        container_type='docker'
+        ):
+    import os
+    import subprocess
+    import multiprocessing
+    import glob
+
+    if os.path.isfile(
+        '{ref_split_by_chromosome_dir}/indexed.success'.format(
+            ref_split_by_chromosome_dir=ref_split_by_chromosome_dir)
+        ):
+        return ref_split_by_chromosome_dir
+
+    chromosome_refs = glob.glob(
+        os.path.join(ref_split_by_chromosome_dir, 'chr*.fa')
+    )
+
+    command = []
+    if container_type == 'docker':
+        command += [
+            'docker run',
+            '--rm',
+            '-v {ref_split_by_chromosome_dir}:{ref_split_by_chromosome_dir}',
+            'olopadelab/polyfuse'
+        ]
+    elif container_type == 'singularity':
+        command += [
+            'singularity exec',
+            '-B {ref_split_by_chromosome_dir}:{ref_split_by_chromosome_dir}',
+            '{base_dir}/docker/polyfuse.sif'
+        ]
+    else:
+        raise RuntimeError('Container type must be either docker or singularity')
+
+    command += [
+        'bowtie-build',
+        '--threads {threads}',
+        '{chromosome_refs}',
+        '{ref_split_by_chromosome_dir}/ref_genome.fa;'
+        'touch {ref_split_by_chromosome_dir}/indexed.success'
+    ]
+
+    subprocess.check_output(
+            ' '.join(command).format(
+            ref_split_by_chromosome_dir=ref_split_by_chromosome_dir,
+            chromosome_refs=','.join(chromosome_refs),
+            threads=os.environ.get('PARSL_CORES', int(multiprocessing.cpu_count() / 2))
+        ),
+        shell=True
+    )
+
+    return ref_split_by_chromosome_dir
+
+
+@bash_app(cache=True)
+def run_mapsplice2(
+        output,
+        ctat_dir,
+        ref_split_by_chromosome_dir,
+        left_fq,
+        right_fq,
+        container_type='docker',
+        stderr=parsl.AUTO_LOGNAME,
+        stdout=parsl.AUTO_LOGNAME):
+    import os
+    import multiprocessing
+
+
+    command = ['echo $HOSTNAME; mkdir -p {output}; ']
+    if container_type == 'docker':
+        command += [
+            'docker run',
+            '--rm',
+            '-v {ctat_dir}:{ctat_dir}:ro',
+            '-v {ref_split_by_chromosome_dir}:{ref_split_by_chromosome_dir}',
+            '-v {left_fq}:{left_fq}:ro',
+            '-v {right_fq}:{right_fq}:ro',
+            '-v {output}:{output}',
+            'hiroko/mapsplice2-hg19'
+        ]
+    elif container_type == 'singularity':
+        command += [
+            'singularity exec',
+            '-B {ctat_dir}:{ctat_dir}',
+            '-B {ref_split_by_chromosome_dir}:{ref_split_by_chromosome_dir}',
+            '-B {left_fq}:{left_fq}',
+            '-B {right_fq}:{right_fq}',
+            '-B {output}:{output}',
+            '{base_dir}/docker/mapsplice2.sif'
+        ]
+    else:
+        raise RuntimeError('Container type must be either docker or singularity')
+
+    command += [
+        'python mapsplice.py',
+        '-c {ref_split_by_chromosome_dir}',
+        '-x {ref_split_by_chromosome_dir}/ref_genome.fa',
+        '-1 {left_fq}',
+        '-2 {right_fq}',
+        '--fusion',
+        '--gene-gtf {ctat_dir}/ref_annot.gtf',
+        '--output {output}',
+        '--bam',
+        '--threads {threads}'
+    ]
+
+    return ' '.join(command).format(
+        output=output,
+        ctat_dir=ctat_dir,
+        ref_split_by_chromosome_dir=ref_split_by_chromosome_dir,
+        left_fq=left_fq,
+        right_fq=right_fq,
+        base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
+        threads=os.environ.get('PARSL_CORES', multiprocessing.cpu_count())
+    )
+
+@python_app(cache=True)
 def build_star_index(
         ctat_dir,
         index_name,

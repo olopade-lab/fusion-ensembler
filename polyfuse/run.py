@@ -37,15 +37,18 @@ spec.loader.exec_module(module)
 parsl.load(module.config)
 
 
+# TODO split processing for model training and application, ensure no overwrite
 if args.container_type == 'singularity':
     # TODO automate singularity hub builds from dockerhub
     # TODO pin versions for all images
+    # TODO check everywhere to ensure no clobbering
     for local, remote in [
                 ('polyfuse.sif', 'olopadelab/polyfuse:latest'),
                 # ('pizzly.sif', 'olopadelab/pizzly:latest'),
                 ('starseqr.sif', 'eagenomics/starseqr:0.6.7'),
                 ('fusioncatcher.sif', 'olopadelab/fusioncatcher:latest'),
                 ('starfusion.sif', 'trinityctat/starfusion:1.8.0')
+                ('mapsplice2.sif', 'hiroko/mapsplice2-hg19')
             ]:
         image_path = '{base_dir}/docker/{local}'.format(base_dir=base_dir, local=local)
         # FIXME may require too much memory on some machines
@@ -76,6 +79,14 @@ starseqr_star_index = apps.build_star_index(
 annotation = apps.download_ensemble_annotation(args.library_dir, args.ensemble_release)
 assembly = apps.download_ensemble_assembly(args.library_dir, args.ensemble_release)
 kallisto_index = apps.kallisto_index(assembly, args.container_type)
+
+ref_split_by_chromosome_dir = apps.build_bowtie_index(
+    apps.split_ref_chromosomes(
+        ctat_dir,
+        container_type=args.container_type
+    ),
+    container_type=args.container_type
+)
 
 sample_dirs = glob.glob(args.sample_dirs)
 for sample_dir in sample_dirs:
@@ -162,6 +173,15 @@ for sample_dir in sample_dirs:
         container_type=args.container_type
     )
     apps.parse_pizzly(os.path.join(output, 'pizzly'), inputs=[pizzly])
+
+    mapsplice2 = apps.run_mapsplice2(
+        os.path.join(output, 'mapsplice2'),
+        ctat_dir,
+        ref_split_by_chromosome_dir,
+        left_fq,
+        right_fq,
+        container_type=args.container_type
+    )
 
 parsl.wait_for_current_tasks()
 truth = apps.concatenate_true_fusions(args.sample_dirs, args.out_dir)
