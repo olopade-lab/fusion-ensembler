@@ -88,6 +88,17 @@ ref_split_by_chromosome_dir = apps.build_bowtie_index(
     container_type=args.container_type
 )
 
+gemtools_genome_index = apps.build_gemtools_genome_index(
+    ctat_dir,
+    container_type=args.container_type
+)
+
+gemtools_transcriptome_index_and_keys = apps.build_gemtools_transcriptome_index_and_keys(
+    ctat_dir,
+    gemtools_genome_index,
+    container_type=args.container_type
+)
+
 sample_dirs = glob.glob(args.sample_dirs)
 for sample_dir in sample_dirs:
     sample = os.path.split(sample_dir)[-1]
@@ -182,6 +193,17 @@ for sample_dir in sample_dirs:
         right_fq,
         container_type=args.container_type
     )
+
+    chimpipe =  apps.run_chimpipe(
+        os.path.join(output, 'chimpipe'),
+        ctat_dir,
+        gemtools_genome_index,
+        gemtools_transcriptome_index_and_keys,
+        left_fq,
+        right_fq,
+        container_type=args.container_type
+    )
+
 
 parsl.wait_for_current_tasks()
 truth = apps.concatenate_true_fusions(args.sample_dirs, args.out_dir)

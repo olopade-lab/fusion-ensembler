@@ -400,7 +400,6 @@ def run_mapsplice2(
     import os
     import multiprocessing
 
-
     # MapSplice does not support gzipped reads, and further does not accept stdin for the reads
     # That is why we cannot use a pipe to provide the unzipped reads
     command = [
@@ -458,6 +457,174 @@ def run_mapsplice2(
         # TODO Prefer not to hardcoode this max, which is tweaked for IGSB config.
         # Need to switch to WorkQueue Parsl executor which will optimize resource packing.
     )
+
+@python_app(cache=True)
+def build_gemtools_genome_index(
+        ctat_dir,
+        container_type='docker'
+        ):
+    import os
+    import subprocess
+    import multiprocessing
+
+    command = []
+    if container_type == 'docker':
+        command += [
+            'docker run',
+            '--rm',
+            '-v {ctat_dir}:{ctat_dir}',
+            'olopadelab/polyfuse'
+        ]
+    elif container_type == 'singularity':
+        command += [
+            'singularity exec',
+            '-B {ctat_dir}:{ctat_dir}',
+            '{base_dir}/docker/polyfuse.sif'
+        ]
+    else:
+        raise RuntimeError('Container type must be either docker or singularity')
+
+    command += ['gemtools index -t {threads} -i {ctat_dir}/ref_genome.fa']
+
+    subprocess.check_output(
+        ' '.join(command).format(
+            ctat_dir=ctat_dir,
+            base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
+            threads=max(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 16)
+        ),
+        shell=True
+    )
+
+    return os.path.join(ctat_dir, 'ref_genome.gem')
+
+@python_app(cache=True)
+def build_gemtools_transcriptome_index_and_keys(
+        ctat_dir,
+        gemtools_genome_index,
+        container_type='docker'
+        ):
+    import os
+    import subprocess
+    import multiprocessing
+
+    command = []
+    if container_type == 'docker':
+        command += [
+            'docker run',
+            '--rm',
+            '-v {ctat_dir}:{ctat_dir}',
+            '-v {gemtools_genome_index}:{gemtools_genome_index}',
+            'olopadelab/polyfuse'
+        ]
+    elif container_type == 'singularity':
+        command += [
+            'singularity exec',
+            '-B {ctat_dir}:{ctat_dir}',
+            '-B {gemtools_genome_index}:{gemtools_genome_index}',
+            '{base_dir}/docker/polyfuse.sif'
+        ]
+    else:
+        raise RuntimeError('Container type must be either docker or singularity')
+
+    command += [
+        '/bin/bash -c "',
+        'cd {ctat_dir};',
+        'gemtools t-index',
+        '-t {threads}',
+        '-i {gemtools_genome_index}',
+        '-a {ctat_dir}/ref_annot.gtf"'
+    ]
+
+    subprocess.check_output(
+        ' '.join(command).format(
+            ctat_dir=ctat_dir,
+            gemtools_genome_index=gemtools_genome_index,
+            base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
+            threads=max(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 16)
+        ),
+        shell=True
+    )
+
+    transcriptome_index = os.path.join(ctat_dir, 'ref_annot.gtf.junctions.gem')
+    transcriptome_keys = os.path.join(ctat_dir, 'ref_annot.gtf.junctions.keys')
+
+    return transcriptome_index, transcriptome_keys
+
+@bash_app(cache=True)
+def run_chimpipe(
+        output,
+        ctat_dir,
+        genome_index,
+        transcriptome_index_and_keys,
+        left_fq,
+        right_fq,
+        container_type='docker',
+        stderr=parsl.AUTO_LOGNAME,
+        stdout=parsl.AUTO_LOGNAME):
+    # TODO add gene pair similarity filtering
+    # see: https://chimpipe.readthedocs.io/en/latest/manual.html
+    import os
+    import multiprocessing
+
+    transcriptome_index, transcriptome_keys = transcriptome_index_and_keys
+    sample_id = os.path.basename(os.path.dirname(output))
+
+    command = ['echo $HOSTNAME; mkdir -p {output}; ']
+    if container_type == 'docker':
+        command += [
+            'docker run',
+            '--rm',
+            '-v {ctat_dir}:{ctat_dir}',
+            '-v {left_fq}:{left_fq}:ro',
+            '-v {right_fq}:{right_fq}:ro',
+            '-v {genome_index}:{genome_index}',
+            '-v {transcriptome_index}:{transcriptome_index}',
+            '-v {transcriptome_keys}:{transcriptome_keys}',
+            '-v {output}:/output',
+            'olopadelab/polyfuse'
+        ]
+    elif container_type == 'singularity':
+        command += [
+            'singularity exec',
+            '-B {ctat_dir}:{ctat_dir}',
+            '-B {left_fq}:{left_fq}',
+            '-B {right_fq}:{right_fq}',
+            '-B {genome_index}:{genome_index}',
+            '-B {transcriptome_index}:{transcriptome_index}',
+            '-B {transcriptome_keys}:{transcriptome_keys}',
+            '-B {output}:/output',
+            '{base_dir}/docker/polyfuse.sif'
+        ]
+    else:
+        raise RuntimeError('Container type must be either docker or singularity')
+
+    command += [
+        '/bin/bash -c "',
+        'cd /output;',
+        '/usr/local/src/ChimPipe*/ChimPipe.sh',
+        '--fastq_1 {left_fq}',
+        '--fastq_2 {right_fq}',
+        '-g {genome_index}',
+        '-a {ctat_dir}/ref_annot.gtf',
+        '-t {transcriptome_index}',
+        '-k {transcriptome_keys}',
+        '--threads {threads}',
+        '--sample-id {sample_id}"'
+    ]
+
+    return ' '.join(command).format(
+            ctat_dir=ctat_dir,
+            left_fq=left_fq,
+            right_fq=right_fq,
+            genome_index=genome_index,
+            transcriptome_index=transcriptome_index,
+            transcriptome_keys=transcriptome_keys,
+            output=output,
+            sample_id=sample_id,
+            base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
+            threads=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 8)
+        )
+
 
 @python_app(cache=True)
 def build_star_index(
