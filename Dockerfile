@@ -15,12 +15,19 @@ RUN apt-get update && apt-get install -y gcc g++ perl python automake make \
        build-essential libghc-zlib-dev libncurses-dev libbz2-dev liblzma-dev libpcre3-dev libxml2-dev \
        libblas-dev gfortran unzip ftp libzmq3-dev ftp fort77 libreadline-dev \
        libcurl4-openssl-dev libx11-dev libxt-dev \
-       x11-common libcairo2-dev libpng-dev libreadline-dev libjpeg-dev pkg-config libtbb-dev \
-       cmake rsync libssl-dev tzdata \
-       bedtools \
-       locales-all \
-       && apt-get clean
+       x11-common libcairo2-dev libpng-dev libreadline-dev libjpeg-dev pkg-config libtbb-dev
+       # cmake rsync libssl-dev tzdata
+       # locales 
+       # devscripts \
+       # software-properties-common \
+       # seqan-dev \
+       # apt-utils \
+       # libpthread-stubs0-dev \
+       # && add-apt-repository ppa:ubuntu-toolchain-r/test && apt-get update && apt-get install -y g++-7 \
+       # && apt-get clean \
+       # && apt-get autoclean
 
+# RUN locale-gen en_US.UTF-8
 
 
 ## perl stuff
@@ -28,6 +35,10 @@ RUN curl -L https://cpanmin.us | perl - App::cpanminus
 RUN cpanm install DB_File
 RUN cpanm install URI::Escape
 RUN cpanm install PerlIO::gzip
+RUN cpanm install Set::IntervalTree
+RUN cpanm install DB_File
+RUN cpanm install Carp::Assert
+RUN cpanm install JSON::XS.pm
 
 
 ## set up tool config and deployment area
@@ -35,9 +46,17 @@ ENV SRC /usr/local/src
 ENV BIN /usr/local/bin
 
 
+## pizzly
+WORKDIR $SRC
+# RUN git clone --recurse-submodules https://github.com/seqan/seqan3.git
+# WORKDIR $SRC/seqan3
+# RUN uscan --force && dpkg-buildpackage -uc -us
+
+
 ## arriba
 WORKDIR $SRC
 RUN wget -q -O - "https://github.com/suhrig/arriba/releases/download/v1.2.0/arriba_v1.2.0.tar.gz" | tar -xzf -
+# ln -s $SRC/arriba_ 
 
 
 ## bowtie
@@ -64,18 +83,6 @@ RUN wget https://sourceforge.net/projects/bowtie-bio/files/bowtie2/2.3.4.1/bowti
     rm -r bowtie2-2.3.4.1-linux-x86_64
 
 
-## ChimPipe
-## ChimPipe expects executables to be in bin dir relative to source,
-## so only copy gemtools to bin
-WORKDIR $SRC
-RUN wget https://github.com/Chimera-tools/ChimPipe/releases/download/v0.9.6/ChimPipe-0.9.6.tar.gz && \
-    tar xzf ChimPipe* && \
-    cp $SRC/ChimPipe*/bin/gemtools*/* $BIN && \
-    rm $SRC/*tar.gz
-
-## needed by gemtools
-ENV LC_ALL=en_US.utf8
-RUN dpkg-reconfigure locales-all
 
 ## samtools
 RUN wget https://github.com/samtools/samtools/releases/download/1.7/samtools-1.7.tar.bz2 && \
@@ -154,7 +161,7 @@ RUN GMAP_URL="http://research-pub.gene.com/gmap/src/gmap-gsnap-$GMAP_VERSION.tar
     cd gmap-$GMAP_VERSION && ./configure --prefix=`pwd` && make && make install && cp ./bin/* $BIN/
 
 
-## STAR-Fusion
+## STAR-Fusion:
 WORKDIR $SRC
 
 ENV STAR_FUSION_VERSION=1.9.0
@@ -168,38 +175,11 @@ RUN git clone https://github.com/STAR-Fusion/STAR-Fusion.git && \
      cd FusionInspector && \
      git submodule init && git submodule update
 
-## Kallisto
-WORKDIR $SRC
-RUN git clone https://github.com/pachterlab/kallisto.git && \
-    cd kallisto && \
-    git checkout ae81a86 && \
-    mkdir build && cd build && \
-    cmake .. && make && make install
-
-## Pizzly
-WORKDIR $SRC
-RUN apt update && apt install -y libz-dev python3 python3-pip; \
-	# ln -s /usr/bin/python3 /usr/local/bin/python; \
-	pip3 install h5py numpy; \
-	git clone https://github.com/pmelsted/pizzly.git; \
-	cd pizzly; \
-	git checkout 8617a24; \
-	mkdir build && cd build && cmake .. && make && make install; \
-	apt remove -y git  && apt autoclean -y  && apt autoremove -y
-
-
-# ## MapSplice
-# ENV MAPSPLICE_VERSION  2.2.1
-# WORKDIR $SRC
-# RUN wget http://protocols.netlab.uky.edu/~zeng/MapSplice-v$MAPSPLICE_VERSION.zip \
-# 	 && unzip MapSplice-v$MAPSPLICE_VERSION.zip \
-# 	 && cd MapSplice-v$MAPSPLICE_VERSION \
-# 	 && make
 
 # COPY run.sh /usr/local/bin
 # RUN chmod a+x /usr/local/bin/run.sh
 
 # cleanup
 WORKDIR $SRC
-RUN rm -r *.tar.gz
+RUN rm -r *.tar.gz *.bz2
 RUN apt-get clean
