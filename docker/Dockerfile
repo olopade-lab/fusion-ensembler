@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y gcc g++ perl python automake make \
        default-jre \
        python-pip python-dev \
        vim \
+       bc \
        gfortran \
        build-essential libghc-zlib-dev libncurses-dev libbz2-dev liblzma-dev libpcre3-dev libxml2-dev \
        libblas-dev gfortran unzip ftp libzmq3-dev ftp fort77 libreadline-dev \
@@ -20,16 +21,16 @@ RUN apt-get update && apt-get install -y gcc g++ perl python automake make \
        bedtools \
        locales-all \
        gawk \
-       git \
        && apt-get clean
 
 
 
-## perl stuff
-RUN curl -L https://cpanmin.us | perl - App::cpanminus
-RUN cpanm install DB_File
-RUN cpanm install URI::Escape
-RUN cpanm install PerlIO::gzip
+## perl
+RUN curl -L https://cpanmin.us | perl - App::cpanminus && \
+    cpanm install DB_File && \
+    cpanm install DB_File && \
+    cpanm install URI::Escape && \
+    cpanm install PerlIO::gzip
 
 
 ## set up tool config and deployment area
