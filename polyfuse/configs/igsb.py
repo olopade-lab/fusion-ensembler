@@ -1,6 +1,6 @@
 from parsl.config import Config
 from parsl.providers import SlurmProvider
-from parsl.addresses import address_by_hostname, address_by_route
+from parsl.addresses import address_by_hostname
 from parsl.executors import HighThroughputExecutor
 from parsl.monitoring.monitoring import MonitoringHub
 from parsl.utils import get_all_checkpoints
@@ -16,8 +16,10 @@ config = Config(
                 nodes_per_block=1,
                 init_blocks=15,
                 max_blocks=15,
-                # scheduler_options='#SBATCH --exclude=kg15-8,kg15-11', # docker: Error response from daemon: Get https://registry-1.docker.io/v2/: dial tcp: lookup registry-1.docker.io on [::1]:53: dial udp [::1]:53: connect: cannot assign requested address.
-                worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages',
+                scheduler_options='#SBATCH --exclude=kg15-11', # docker: Got permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Post http://%2Fvar%2Frun%2Fdocker.sock/v1.37/containers/create: dial unix /var/run/docker.sock: connect: permission denied.
+                # worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages',
+                # worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages; docker pull olopadelab/polyfuse',
+                worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages; docker load -i /cephfs/users/annawoodard/polyfuse/docker/polyfuse.tar',
                 walltime='48:00:00'
             ),
         )
