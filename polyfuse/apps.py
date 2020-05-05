@@ -1,5 +1,6 @@
 # TODO documentation
 # TODO split into calling, modeling modules
+# TODO remove docker pulls once all versions are pinned
 import parsl
 from parsl.app.app import bash_app, python_app
 
@@ -12,8 +13,8 @@ def assemble_data_per_sample(sample, callers, out_dir):
 
     caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'data')
     caller_data = caller_data[caller_data['sample'] == sample]
-    # if not set(caller_data.caller.unique()) == set(callers):
-    #     return [], []
+    if not set(callers).issubset(set(caller_data.caller.unique())):
+        return None
 
     true_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
     true_fusions = true_fusions[true_fusions['sample'] == sample]
@@ -77,8 +78,8 @@ def assemble_data(samples, callers, out_dir):
 
     data = [assemble_data_per_sample(sample, callers, out_dir) for sample in samples]
 
-    x = pd.concat([d.result()[0] for d in data])
-    y = sum([d.result()[1] for d in data], [])
+    x = pd.concat([d.result()[0] for d in data if d.result() is not None])
+    y = sum([d.result()[1] for d in data if d.result() is not None], [])
 
     return x, y
 
@@ -116,6 +117,8 @@ def predict_per_sample(data, sample, out_dir, classifier_label, features, transf
     import joblib
     from polyfuse import transformations
 
+    if data is None:
+        return None
     x, _, fusions = data
 
     classifier = joblib.load(os.path.join(out_dir, 'models', '{}.joblib'.format(classifier_label)))
@@ -149,7 +152,7 @@ def predict(samples, out_dir, classifiers, callers):
                 transformation,
                 callers)
             ]
-    model_data = pd.concat([f.result() for f in futures])
+    model_data = pd.concat([f.result() for f in futures if f.result() is not None])
     path = os.path.join(out_dir, 'model_data.hdf')
     model_data.to_hdf(path, 'data', mode='w')
 
@@ -165,6 +168,8 @@ def score_caller(out_dir, sample, caller):
     cut_truth = truth[truth['sample'] == sample]
     data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'))
     cut_data = data.loc[(data.caller == caller) & (data['sample'] == sample)]
+    if len(cut_data) == 0:
+        return None
     fusions = set(np.concatenate(
         (data[data['sample'] == sample].fusion.unique(), cut_truth.fusion.unique()))
     )
@@ -183,6 +188,8 @@ def score_model(out_dir, sample, model):
 
     data = pd.read_hdf(os.path.join(out_dir, 'model_data.hdf'))
     cut_data = data.loc[(data.caller == model) & (data['sample'] == sample)]
+    if len(cut_data) == 0:
+        return None
     truth = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'))
     cut_truth = truth[truth['sample'] == sample]
     fusions = set(np.concatenate((cut_data.fusion.unique(), cut_truth.fusion.unique())))
@@ -222,6 +229,8 @@ def make_summary(out_dir, samples):
     f1s = []
     mccs = []
     for f, caller, sample in futures:
+        if f.result() is None:
+            continue
         y_true, y_pred, _ = f.result()
         cm = metrics.confusion_matrix(y_true, y_pred)
         tn = cm[0][0]
