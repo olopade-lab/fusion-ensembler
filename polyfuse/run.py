@@ -193,6 +193,7 @@ for sample_dir in sample_dirs:
         right_fq,
         container_type=args.container_type
     )
+    apps.parse_mapsplice2(os.path.join(output, 'mapsplice2'), inputs=[mapsplice2])
 
     chimpipe =  apps.run_chimpipe(
         os.path.join(output, 'chimpipe'),

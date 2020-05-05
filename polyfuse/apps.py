@@ -846,6 +846,46 @@ def parse_arriba(out_dir, inputs=[]):
 
     return output
 
+@python_app
+def parse_mapsplice2(out_dir, inputs=[]):
+    # http://www.netlab.uky.edu/p/bioinfo/MapSplice2FusionJunctionFormat
+    import os
+    import pandas as pd
+
+    path = os.path.join(out_dir, 'fusions_well_annotated.txt')
+    # path = os.path.join(out_dir, 'fusions_candidates.txt')
+    if not os.path.exists(path):
+        return None
+    sample = path.split('/')[-3]
+    caller = path.split('/')[-2]
+    columns = [
+        'chrom', 'doner_end', 'acceptor_start', 'id', 'coverage', 'strand', 'rgb', 'block_count', 'block_size',
+        'block_distance', 'entropy', 'flank_case', 'flank_string', 'min_mismatch', 'max_mismatch', 'ave_mismatch',
+        'max_min_suffix', 'max_min_prefix', 'min_anchor_difference', 'unique_read_count', 'multi_read_count',
+        'paired_read_count', 'left_paired_read_count', 'right_paired_read_count', 'multiple_paired_read_count',
+        'unique_paired_read_count', 'single_read_count', 'encompassing_read_pair_count', 'doner_start',
+        'acceptor_end', 'doner_iosforms', 'acceptor_isoforms', 'obsolete1', 'obsolete2', 'obsolete3', 'obsolete4',
+        'minimal_doner_isoform_length', 'maximal_doner_isoform_length', 'minimal_acceptor_isoform_length',
+        'maximal_acceptor_isoform_length', 'paired_reads_entropy', 'mismatch_per_bp', 'anchor_score',
+        'max_doner_fragment', 'max_acceptor_fragment', 'max_cur_fragment', 'min_cur_fragment', 'ave_cur_fragment',
+        'doner_encompass_unique', 'doner_encompass_multiple', 'acceptor_encompass_unique',
+        'acceptor_encompass_multiple', 'doner_match_to_normal', 'acceptor_match_to_normal', 'doner_seq',
+        'acceptor_seq', 'match_gene_strand', 'annotated_type', 'fusion_type', 'gene_strand', 'annotated_gene_donor',
+        'annotated_gene_acceptor'
+    ]
+    data = pd.read_csv(path, sep='\t', names=columns, index_col=False)
+    data['gene1'] = [d.strip(',') for d in data['annotated_gene_donor']]
+    data['gene2'] = [d.strip(',') for d in data['annotated_gene_acceptor']]
+    data['junction_reads'] = data.coverage # coverage: number of reads aligned to the fusion junction
+    data['spanning_reads'] = data.encompassing_read_pair_count # encompassing_read_pair_count: number of reads pairs surrounding (but not crossing) the fusion
+    data['caller'] = caller
+    data['sample'] = sample
+
+    output = os.path.join(os.path.dirname(path), 'fusions.pkl')
+    data.to_pickle(output)
+
+    return output
+
 
 # FIXME Only run STAR once
 # FIXME add back validation?
