@@ -7,7 +7,7 @@ from parsl.app.app import bash_app, python_app
 
 
 @python_app
-def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, extra_features=None):
+def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, extra_features=None, assemble_truth=True):
     import os
     import pandas as pd
     import numpy as np
@@ -18,9 +18,12 @@ def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, ex
     if not set(callers).issubset(set(sample_data.caller.unique())):
         return None
 
-    true_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
-    true_fusions = true_fusions[true_fusions['sample'] == sample]
-    fusions = list(set(np.concatenate((sample_data.fusion.unique(), true_fusions.fusion.unique()))))
+    if assemble_truth:
+        true_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
+        true_fusions = true_fusions[true_fusions['sample'] == sample]
+        fusions = list(set(np.concatenate((sample_data.fusion.unique(), true_fusions.fusion.unique()))))
+    else:
+        fusions = sample_data.fusion.unique().tolist()
 
     x = []
     y = []
@@ -57,7 +60,8 @@ def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, ex
             row += [view.loc[index] if index is not None else 0]
 
         x += [row]
-        y += [1 if any(true_fusions.fusion.isin([fusion])) else 0]
+        if assemble_truth:
+            y += [1 if any(true_fusions.fusion.isin([fusion])) else 0]
 
     columns = ['mean_spanning_reads', 'mean_junction_reads']
     for c in callers:
@@ -77,10 +81,20 @@ def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, ex
 
     return x, y, fusions
 
-def assemble_data(samples, callers, out_dir, encoded_features=None, extra_features=None):
+def assemble_data(samples, callers, out_dir, encoded_features=None, extra_features=None, assemble_truth=True):
     import pandas as pd
 
-    data = [assemble_data_per_sample(sample, callers, out_dir, encoded_features, extra_features) for sample in samples]
+    data = [
+        assemble_data_per_sample(
+            sample,
+            callers,
+            out_dir,
+            encoded_features,
+            extra_features,
+            assemble_truth=assemble_truth
+        )
+        for sample in samples
+    ]
 
     x = pd.concat([d.result()[0] for d in data if d.result() is not None])
     y = sum([d.result()[1] for d in data if d.result() is not None], [])
