@@ -36,7 +36,8 @@ def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, ex
         ]
 
     for fusion in fusions:
-        row = []
+        means = sample_data.loc[sample_data.fusion == fusion, ['spanning_reads', 'junction_reads']].mean().values.tolist()
+        row = means if len(means) > 0 else [0., 0.]
         for c in callers:
             cut = (sample_data.fusion == fusion) & (sample_data.caller == c)
             data = sample_data.loc[cut, ['spanning_reads', 'junction_reads']]
@@ -59,7 +60,7 @@ def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, ex
         x += [row]
         y += [1 if any(true_fusions.fusion.isin([fusion])) else 0]
 
-    columns = []
+    columns = ['mean_spanning_reads', 'mean_junction_reads']
     for c in callers:
         columns += [c + '_called', c + '_spanning_reads', c + '_junction_reads']
     columns += encoded_features + extra_features
