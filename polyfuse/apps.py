@@ -7,49 +7,52 @@ from parsl.app.app import bash_app, python_app
 
 
 @python_app
-def assemble_data_per_sample(sample, callers, out_dir):
+def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, extra_features=None):
     import os
     import pandas as pd
     import numpy as np
 
-    caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'data')
-    caller_data = caller_data[caller_data['sample'] == sample]
-    if not set(callers).issubset(set(caller_data.caller.unique())):
+    all_caller_data = pd.read_hdf(os.path.join(out_dir, 'all_caller_data.hdf'), 'data')
+    # caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'data')
+    sample_data = all_caller_data[all_caller_data['sample'] == sample]
+    if not set(callers).issubset(set(sample_data.caller.unique())):
         return None
 
     true_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
     true_fusions = true_fusions[true_fusions['sample'] == sample]
-    fusions = list(set(np.concatenate((caller_data.fusion.unique(), true_fusions.fusion.unique()))))
+    fusions = list(set(np.concatenate((sample_data.fusion.unique(), true_fusions.fusion.unique()))))
 
     x = []
     y = []
-    encoded_feature_info = [
-        ('arriba_confidence', ['high', 'medium', 'low']),
-        ('starfusion_LargeAnchorSupport', ['YES_LDAS', 'NO_LDAS'])
-    ]
-    extra_features = [
-        'starfusion_FFPM', 'starfusion_LeftBreakEntropy', 'starfusion_RightBreakEntropy',
-        'arriba_coverage1', 'arriba_coverage2'
-    ]
+    if encoded_features is None:
+        encoded_features = [
+            'arriba_confidence',
+            'starfusion_LargeAnchorSupport',
+        ]
+    if extra_features is None:
+        extra_features = [
+            'starfusion_FFPM', 'starfusion_LeftBreakEntropy', 'starfusion_RightBreakEntropy',
+            'arriba_coverage1', 'arriba_coverage2'
+        ]
 
     for fusion in fusions:
         row = []
         for c in callers:
-            cut = (caller_data.fusion == fusion) & (caller_data.caller == c)
-            data = caller_data.loc[cut, ['spanning_reads', 'junction_reads']]
+            cut = (sample_data.fusion == fusion) & (sample_data.caller == c)
+            data = sample_data.loc[cut, ['spanning_reads', 'junction_reads']]
             if len(data) > 0:
                 row += [1] + data.values[0].tolist()
             else:
                 row += [0, 0, 0]
                 # Below was an attempt to impute missing data-- did not improve performance
-                # cut = (caller_data.fusion == fusion)
-                # data = caller_data.loc[cut, ['spanning_reads', 'junction_reads']]
+                # cut = (sample_data.fusion == fusion)
+                # data = sample_data.loc[cut, ['spanning_reads', 'junction_reads']]
                 # if len(data) > 0:
                 #     row += [0] + data.mean().values.tolist()
                 # else: # this is a true fusion that no callers identified
                 #     row += [0, 0, 0]
-        for feature in [f for f, _ in encoded_feature_info] + extra_features:
-            view = caller_data.loc[caller_data.fusion == fusion, feature]
+        for feature in encoded_features + extra_features:
+            view = sample_data.loc[sample_data.fusion == fusion, feature]
             index = view.first_valid_index()
             row += [view.loc[index] if index is not None else 0]
 
@@ -59,13 +62,13 @@ def assemble_data_per_sample(sample, callers, out_dir):
     columns = []
     for c in callers:
         columns += [c + '_called', c + '_spanning_reads', c + '_junction_reads']
-    columns += [feature for feature, _ in encoded_feature_info]
-    columns += extra_features
+    columns += encoded_features + extra_features
     x = pd.DataFrame(x, columns=columns)
 
-    for feature, categories in encoded_feature_info:
+    for feature in encoded_features:
         #  transformation below is required so that one-hot encoding will still
         #  add a column for categories, even if they do not appear in this sample
+        categories = [c for c in all_caller_data[feature].unique() if str(c) != 'nan']
         x[feature] = x[feature].astype(pd.api.types.CategoricalDtype(categories))
         one_hot_encoded_columns = pd.get_dummies(x[feature], prefix=feature, dummy_na=True)
         x = pd.concat([x, one_hot_encoded_columns], axis=1).drop([feature], axis=1)
@@ -73,10 +76,10 @@ def assemble_data_per_sample(sample, callers, out_dir):
 
     return x, y, fusions
 
-def assemble_data(samples, callers, out_dir):
+def assemble_data(samples, callers, out_dir, encoded_features=None, extra_features=None):
     import pandas as pd
 
-    data = [assemble_data_per_sample(sample, callers, out_dir) for sample in samples]
+    data = [assemble_data_per_sample(sample, callers, out_dir, encoded_features, extra_features) for sample in samples]
 
     x = pd.concat([d.result()[0] for d in data if d.result() is not None])
     y = sum([d.result()[1] for d in data if d.result() is not None], [])
@@ -354,30 +357,29 @@ def make_summary(out_dir, samples):
 
 
 @python_app
-def concatenate_caller_data(out_dir, columns=None, inputs=[]):
+def concatenate_caller_data(out_dir, inputs=[]):
     import pandas as pd
     import glob
     import os
 
-    if columns == None:
-        columns = [
-            'spanning_reads',
-            'junction_reads',
-            'sample',
-            'caller',
-            'gene1',
-            'gene2',
-            'arriba_confidence',
-            'arriba_reading_frame',
-            'starfusion_LargeAnchorSupport',
-            'starfusion_FFPM',
-            'starfusion_LeftBreakEntropy',
-            'starfusion_RightBreakEntropy',
-            'arriba_coverage1',
-            'arriba_coverage2',
-            'fusion',
-            'sum_J_S'
-        ]
+    columns = [
+        'spanning_reads',
+        'junction_reads',
+        'sample',
+        'caller',
+        'gene1',
+        'gene2',
+        'arriba_confidence',
+        'arriba_reading_frame',
+        'starfusion_LargeAnchorSupport',
+        'starfusion_FFPM',
+        'starfusion_LeftBreakEntropy',
+        'starfusion_RightBreakEntropy',
+        'arriba_coverage1',
+        'arriba_coverage2',
+        'fusion',
+        'sum_J_S'
+    ]
     caller_data = pd.concat(
         [
             pd.read_pickle(f)
@@ -388,15 +390,16 @@ def concatenate_caller_data(out_dir, columns=None, inputs=[]):
         sort=False
     )
     # caller_data['fusion'] = caller_data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1) # FIXME
+
     caller_data['fusion'] = caller_data[['gene1', 'gene2']].apply(lambda x: '--'.join(x), axis=1) # FIXME
     caller_data['sum_J_S'] = caller_data['junction_reads'] + caller_data['spanning_reads']
     output = os.path.join(out_dir, 'caller_data.hdf')
 
-    if columns == 'all':
-        output = os.path.join(out_dir, 'all_caller_data.hdf')
-        caller_data.to_hdf(output, 'data', mode='w')
-    else:
-        caller_data[columns].to_hdf(output, 'data', mode='w')
+    output = os.path.join(out_dir, 'all_caller_data.hdf')
+    caller_data.to_hdf(output, 'data', mode='w')
+
+    output = os.path.join(out_dir, 'caller_data.hdf')
+    caller_data[columns].to_hdf(output, 'data', mode='w')
 
     return output
 
@@ -909,6 +912,9 @@ def parse_pizzly(out_dir, inputs=[]):
     data['caller'] = caller
     data['sample'] = sample
 
+    common_columns = ['sample', 'caller', 'gene1', 'gene2', 'junction_reads', 'spanning_reads']
+    data.rename(columns={c: 'pizzly_' + c for c in data.columns if c not in common_columns}, inplace=True)
+
     output = os.path.join(os.path.dirname(path), 'fusions.pkl')
     data.to_pickle(output)
 
@@ -926,12 +932,19 @@ def parse_arriba(out_dir, inputs=[]):
     caller = path.split('/')[-2]
     data = pd.read_csv(path, sep='\t')
     # data = data[data.confidence.str.contains('medium|high')]
-    data.rename(columns={'#gene1': 'gene1'}, inplace=True)
+    data.rename(columns={
+        '#gene1': 'gene1',
+        'discordant_mates': 'spanning_reads',
+        },
+        inplace=True
+    )
     data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
     data['junction_reads'] = data.split_reads1 + data.split_reads2
-    data['spanning_reads'] = data.discordant_mates
     data['caller'] = caller
     data['sample'] = sample
+
+    common_columns = ['sample', 'caller', 'gene1', 'gene2', 'junction_reads', 'spanning_reads']
+    data.rename(columns={c: 'arriba_' + c for c in data.columns if c not in common_columns}, inplace=True)
 
     output = os.path.join(os.path.dirname(path), 'fusions.pkl')
     data.to_pickle(output)
@@ -968,10 +981,17 @@ def parse_mapsplice2(out_dir, inputs=[]):
     data = pd.read_csv(path, sep='\t', names=columns, index_col=False)
     data['gene1'] = [d.strip(',') for d in data['annotated_gene_donor']]
     data['gene2'] = [d.strip(',') for d in data['annotated_gene_acceptor']]
-    data['junction_reads'] = data.coverage # coverage: number of reads aligned to the fusion junction
-    data['spanning_reads'] = data.encompassing_read_pair_count # encompassing_read_pair_count: number of reads pairs surrounding (but not crossing) the fusion
     data['caller'] = caller
     data['sample'] = sample
+    data.rename(columns={
+        'coverage': 'junction_reads', # coverage: number of reads aligned to the fusion junction
+        'encompassing_read_pair_count': 'spanning_reads',  # encompassing_read_pair_count: number of reads pairs surrounding (but not crossing) the fusion
+        },
+        inplace=True
+    )
+
+    common_columns = ['sample', 'caller', 'gene1', 'gene2', 'junction_reads', 'spanning_reads']
+    data.rename(columns={c: 'mapsplice2_' + c for c in data.columns if c not in common_columns}, inplace=True)
 
     output = os.path.join(os.path.dirname(path), 'fusions.pkl')
     data.to_pickle(output)
@@ -1057,11 +1077,17 @@ def parse_starfusion(out_dir, inputs=[]):
     pattern = re.compile(r'\^.*')
     data['gene1'] = data.LeftGene.str.replace(pattern, '')
     data['gene2'] = data.RightGene.str.replace(pattern, '')
-    data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
-    data['junction_reads'] = data['JunctionReadCount']
-    data['spanning_reads'] = data['SpanningFragCount']
     data['caller'] = caller
     data['sample'] = sample
+    data.rename(columns={
+        'JunctionReadCount': 'junction_reads',
+        'SpanningFragCount': 'spanning_reads'
+        },
+        inplace=True
+    )
+
+    common_columns = ['sample', 'caller', 'gene1', 'gene2', 'junction_reads', 'spanning_reads']
+    data.rename(columns={c: 'starfusion_' + c for c in data.columns if c not in common_columns}, inplace=True)
 
     output = os.path.join(os.path.dirname(path), 'fusions.pkl')
     data.to_pickle(output)
@@ -1156,9 +1182,12 @@ def parse_starseqr(out_dir, inputs=[]):
     data.breakpoint2 = data.chromosome2 + ':' + data.breakpoint2.astype(str)
     # data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
     data['junction_reads'] = data.NREAD_JXNLEFT + data.NREAD_JXNRIGHT
-    data['spanning_reads'] = data.NREAD_SPANS
+    data.rename(columns={'NREAD_SPANS': 'spanning_reads'}, inplace=True)
     data['caller'] = caller
     data['sample'] = sample
+
+    common_columns = ['sample', 'caller', 'gene1', 'gene2', 'junction_reads', 'spanning_reads']
+    data.rename(columns={c: 'starseqr_' + c for c in data.columns if c not in common_columns}, inplace=True)
 
     output = os.path.join(out_dir, 'fusions.pkl')
     data.to_pickle(output)
@@ -1318,14 +1347,20 @@ def parse_fusioncatcher(out_dir, inputs=[]):
     caller = path.split('/')[-2]
 
     data = pd.read_csv(path, sep='\t')
-    data.rename(columns={'Gene_1_symbol(5end_fusion_partner)': 'gene1', 'Gene_2_symbol(3end_fusion_partner)': 'gene2'},
-            inplace=True)
+    data.rename(columns={
+        'Gene_1_symbol(5end_fusion_partner)': 'gene1',
+        'Gene_2_symbol(3end_fusion_partner)': 'gene2',
+        'Spanning_pairs': 'spanning_reads',
+        'Spanning_unique_reads': 'junction_reads'
+        },
+        inplace=True
+    )
     data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
-    data['spanning_reads'] = data['Spanning_pairs']
-    data['junction_reads'] = data['Spanning_unique_reads']
-
     data['caller'] = caller
     data['sample'] = sample
+
+    common_columns = ['sample', 'caller', 'gene1', 'gene2', 'junction_reads', 'spanning_reads']
+    data.rename(columns={c: 'fusioncatcher_' + c for c in data.columns if c not in common_columns}, inplace=True)
 
     output = os.path.join(os.path.dirname(path), 'fusions.pkl')
     data.to_pickle(output)
