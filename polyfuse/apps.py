@@ -24,13 +24,12 @@ def assemble_data_per_sample(sample, callers, out_dir):
     x = []
     y = []
     encoded_feature_info = [
-        ('confidence', 'arriba_confidence', ('high', 'medium', 'low')),
-        # ('reading_frame', 'arriba_reading_frame', ('out-of-frame', 'in-frame', '.')),
-        ('LargeAnchorSupport', 'starfusion_large_anchor_support', ('YES_LDAS', 'NO_LDAS'))
+        ('arriba_confidence', ['high', 'medium', 'low']),
+        ('starfusion_LargeAnchorSupport', ['YES_LDAS', 'NO_LDAS'])
     ]
     extra_features = [
-        'FFPM', 'LeftBreakEntropy', 'RightBreakEntropy',
-        'coverage1', 'coverage2'
+        'starfusion_FFPM', 'starfusion_LeftBreakEntropy', 'starfusion_RightBreakEntropy',
+        'arriba_coverage1', 'arriba_coverage2'
     ]
 
     for fusion in fusions:
@@ -49,7 +48,7 @@ def assemble_data_per_sample(sample, callers, out_dir):
                 #     row += [0] + data.mean().values.tolist()
                 # else: # this is a true fusion that no callers identified
                 #     row += [0, 0, 0]
-        for feature in [f for f, _, _ in encoded_feature_info] + extra_features:
+        for feature in [f for f, _ in encoded_feature_info] + extra_features:
             view = caller_data.loc[caller_data.fusion == fusion, feature]
             index = view.first_valid_index()
             row += [view.loc[index] if index is not None else 0]
@@ -60,15 +59,15 @@ def assemble_data_per_sample(sample, callers, out_dir):
     columns = []
     for c in callers:
         columns += [c + '_called', c + '_spanning_reads', c + '_junction_reads']
-    columns += [feature for feature, _, _ in encoded_feature_info]
+    columns += [feature for feature, _ in encoded_feature_info]
     columns += extra_features
     x = pd.DataFrame(x, columns=columns)
 
-    for feature, prefix, categories in encoded_feature_info:
+    for feature, categories in encoded_feature_info:
         #  transformation below is required so that one-hot encoding will still
         #  add a column for categories, even if they do not appear in this sample
         x[feature] = x[feature].astype(pd.api.types.CategoricalDtype(categories))
-        one_hot_encoded_columns = pd.get_dummies(x[feature], prefix=prefix, dummy_na=True)
+        one_hot_encoded_columns = pd.get_dummies(x[feature], prefix=feature, dummy_na=True)
         x = pd.concat([x, one_hot_encoded_columns], axis=1).drop([feature], axis=1)
 
 
@@ -355,32 +354,33 @@ def make_summary(out_dir, samples):
 
 
 @python_app
-def concatenate_caller_data(out_dir, inputs=[]):
+def concatenate_caller_data(out_dir, columns=None, inputs=[]):
     import pandas as pd
     import glob
     import os
 
-    columns = [
-        'spanning_reads',
-        'junction_reads',
-        'sample',
-        'caller',
-        'gene1',
-        'gene2',
-        'confidence',
-        'reading_frame',
-        'LargeAnchorSupport',
-        'FFPM',
-        'LeftBreakEntropy',
-        'RightBreakEntropy',
-        'coverage1',
-        'coverage2',
-        'fusion',
-        'sum_J_S'
-    ]
+    if columns == None:
+        columns = [
+            'spanning_reads',
+            'junction_reads',
+            'sample',
+            'caller',
+            'gene1',
+            'gene2',
+            'arriba_confidence',
+            'arriba_reading_frame',
+            'starfusion_LargeAnchorSupport',
+            'starfusion_FFPM',
+            'starfusion_LeftBreakEntropy',
+            'starfusion_RightBreakEntropy',
+            'arriba_coverage1',
+            'arriba_coverage2',
+            'fusion',
+            'sum_J_S'
+        ]
     caller_data = pd.concat(
         [
-            pd.read_pickle(f) #[['spanning_reads', 'junction_reads', 'sample', 'caller', 'gene1', 'gene2']]
+            pd.read_pickle(f)
             for f in
             glob.glob(os.path.join(out_dir, '*', '*', 'fusions.pkl'))
         ],
@@ -391,8 +391,12 @@ def concatenate_caller_data(out_dir, inputs=[]):
     caller_data['fusion'] = caller_data[['gene1', 'gene2']].apply(lambda x: '--'.join(x), axis=1) # FIXME
     caller_data['sum_J_S'] = caller_data['junction_reads'] + caller_data['spanning_reads']
     output = os.path.join(out_dir, 'caller_data.hdf')
-    # caller_data = caller_data.fillna(0)
-    caller_data[columns].to_hdf(output, 'data', mode='w')
+
+    if columns == 'all':
+        output = os.path.join(out_dir, 'all_caller_data.hdf')
+        caller_data.to_hdf(output, 'data', mode='w')
+    else:
+        caller_data[columns].to_hdf(output, 'data', mode='w')
 
     return output
 
