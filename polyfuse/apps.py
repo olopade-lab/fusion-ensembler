@@ -1,6 +1,7 @@
 # TODO documentation
 # TODO split into calling, modeling modules
 # TODO remove docker pulls once all versions are pinned
+# TODO df['sample'] -> df.sample_id
 import parsl
 from parsl.app.app import bash_app, python_app
 
@@ -80,6 +81,8 @@ def assemble_data(samples, callers, out_dir):
 
     x = pd.concat([d.result()[0] for d in data if d.result() is not None])
     y = sum([d.result()[1] for d in data if d.result() is not None], [])
+
+    x = x.fillna(0)
 
     return x, y
 
