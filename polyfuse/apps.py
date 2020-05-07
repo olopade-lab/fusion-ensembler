@@ -36,8 +36,7 @@ def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, ex
         ]
 
     for fusion in fusions:
-        means = sample_data.loc[sample_data.fusion == fusion, ['spanning_reads', 'junction_reads']].mean().values.tolist()
-        row = means if len(means) > 0 else [0., 0.]
+        row = sample_data.loc[sample_data.fusion == fusion, ['spanning_reads', 'junction_reads']].mean().values.tolist()
         for c in callers:
             cut = (sample_data.fusion == fusion) & (sample_data.caller == c)
             data = sample_data.loc[cut, ['spanning_reads', 'junction_reads']]
@@ -65,6 +64,7 @@ def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, ex
         columns += [c + '_called', c + '_spanning_reads', c + '_junction_reads']
     columns += encoded_features + extra_features
     x = pd.DataFrame(x, columns=columns)
+    x = x.fillna(0) # fusions that only appear in truth set will have NaN means
 
     for feature in encoded_features:
         #  transformation below is required so that one-hot encoding will still
