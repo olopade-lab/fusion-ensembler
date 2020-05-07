@@ -109,8 +109,45 @@ def parse_caller_data(out_dir, callers):
 
     return futures
 
+def predict_consensus(samples, out_dir, callers, quorums):
+    import pandas as pd
+    import os
+    from polyfuse.utils import get_consensus
+
+    data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'))
+    futures = []
+    for sample in samples:
+        cut_data = data.loc[data['sample'] == sample]
+
+        callsets = []
+        for caller in callers:
+            callsets.append(set(cut_data[cut_data.caller == caller].fusion))
+        for quorum in quorums:
+            futures += [(get_consensus(callsets, quorum), sample, quorum)]
+
+    samples = []
+    callers = []
+    fusions = []
+    for f, sample, quorum in futures:
+        consensus_fusions = f.result()
+        samples += [sample for i in range(len(consensus_fusions))]
+        callers += ['ConsensusQ{}'.format(quorum) for i in range(len(consensus_fusions))]
+        fusions += list(consensus_fusions)
+
+    consensus_data = pd.DataFrame(data={
+            'sample': samples,
+            'caller': callers,
+            'fusion': fusions,
+        }
+    )
+
+    path = os.path.join(out_dir, 'consensus_data.hdf')
+    consensus_data.to_hdf(path, 'data', mode='w')
+
+    return path
+
 @python_app
-def predict_per_sample(data, sample, out_dir, classifier_label, features, transformation, callers):
+def predict_per_sample(data, sample, out_dir, classifier_label, features, transformation, callers, consensus=None):
     import os
     import pandas as pd
     import numpy as np
@@ -125,9 +162,18 @@ def predict_per_sample(data, sample, out_dir, classifier_label, features, transf
     probabilities = classifier.predict_proba(getattr(transformations, transformation)(x[features]))[:, 1]
     predictions = classifier.predict(getattr(transformations, transformation)(x[features]))
 
+    label = 'Polyfuse' + classifier_label
+    if consensus is not None:
+        label = consensus + label
+        consensus_data = pd.read_hdf(os.path.join(out_dir, 'consensus_data.hdf'))
+        cut_data = consensus_data.loc[(consensus_data['sample'] == sample) & (consensus_data.caller == consensus)]
+        consensus_predictions = [1 if any(cut_data.fusion.isin([f])) else 0 for f in fusions]
+        predictions = predictions | consensus_predictions
+
+
     return pd.DataFrame(data={
             'sample': [sample for i in range(len(fusions))],
-            'caller': ['Polyfuse' + classifier_label for i in range(len(fusions))],
+            'caller': [label for i in range(len(fusions))],
             'fusion': fusions,
             'probability': probabilities.tolist(),
             'prediction': predictions.tolist()
@@ -135,7 +181,7 @@ def predict_per_sample(data, sample, out_dir, classifier_label, features, transf
     )
 
 
-def predict(samples, out_dir, classifiers, callers):
+def predict(samples, out_dir, classifiers, callers, consensus=None):
     import pandas as pd
     import os
 
@@ -152,11 +198,45 @@ def predict(samples, out_dir, classifiers, callers):
                 transformation,
                 callers)
             ]
+            if consensus is not None:
+                for consensus_caller in consensus:
+                    futures += [predict_per_sample(
+                        sample_data,
+                        sample,
+                        out_dir,
+                        label,
+                        features,
+                        transformation,
+                        callers,
+                        consensus=consensus_caller)
+                    ]
     model_data = pd.concat([f.result() for f in futures if f.result() is not None])
     path = os.path.join(out_dir, 'model_data.hdf')
     model_data.to_hdf(path, 'data', mode='w')
 
     return path
+
+@python_app
+def score_consensus(out_dir, sample, caller):
+    import pandas as pd
+    import os
+    import numpy as np
+
+    truth = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')
+    cut_truth = truth[truth['sample'] == sample]
+    data = pd.read_hdf(os.path.join(out_dir, 'consensus_data.hdf'))
+    cut_data = data.loc[(data.caller == caller) & (data['sample'] == sample)]
+    if len(cut_data) == 0:
+        return None
+    fusions = set(np.concatenate(
+        (data[data['sample'] == sample].fusion.unique(), cut_truth.fusion.unique()))
+    )
+
+    y_true = [1 if any(cut_truth.fusion.isin([f])) else 0 for f in fusions]
+    y_pred = [1 if any(cut_data.fusion.isin([f])) else 0 for f in fusions]
+    y_prob = [np.nan for f in fusions]
+
+    return y_true, y_pred, y_prob
 
 @python_app
 def score_caller(out_dir, sample, caller):
@@ -216,6 +296,11 @@ def make_summary(out_dir, samples):
     for caller in caller_data.caller.unique():
         for sample in samples:
             futures += [(score_caller(out_dir, sample, caller), caller, sample)]
+
+    consensus_data = pd.read_hdf(os.path.join(out_dir, 'consensus_data.hdf'))
+    for caller in consensus_data.caller.unique():
+        for sample in samples:
+            futures += [(score_consensus(out_dir, sample, caller), caller, sample)]
 
     samples = []
     callers = []
