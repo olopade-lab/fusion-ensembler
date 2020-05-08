@@ -167,7 +167,7 @@ def predict_consensus(samples, out_dir, callers, quorums):
     return path
 
 @python_app
-def predict_per_sample(data, sample, out_dir, classifier_label, features, transformation, callers, consensus=None):
+def predict_per_sample(data, sample, out_dir, model_dir, classifier_label, features, transformation, callers, consensus=None):
     import os
     import pandas as pd
     import numpy as np
@@ -178,7 +178,7 @@ def predict_per_sample(data, sample, out_dir, classifier_label, features, transf
         return None
     x, _, fusions = data
 
-    classifier = joblib.load(os.path.join(out_dir, 'models', '{}.joblib'.format(classifier_label)))
+    classifier = joblib.load(os.path.join(model_dir, '{}.joblib'.format(classifier_label)))
     probabilities = classifier.predict_proba(getattr(transformations, transformation)(x[features]))[:, 1]
     predictions = classifier.predict(getattr(transformations, transformation)(x[features]))
 
@@ -201,7 +201,7 @@ def predict_per_sample(data, sample, out_dir, classifier_label, features, transf
     )
 
 
-def predict(samples, out_dir, classifiers, callers, consensus=None):
+def predict(samples, out_dir, model_dir, classifiers, callers, consensus=None):
     import pandas as pd
     import os
 
@@ -213,6 +213,7 @@ def predict(samples, out_dir, classifiers, callers, consensus=None):
                 sample_data,
                 sample,
                 out_dir,
+                model_dir,
                 label,
                 features,
                 transformation,
@@ -224,6 +225,7 @@ def predict(samples, out_dir, classifiers, callers, consensus=None):
                         sample_data,
                         sample,
                         out_dir,
+                        model_dir,
                         label,
                         features,
                         transformation,
