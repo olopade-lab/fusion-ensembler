@@ -31,11 +31,27 @@ def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, ex
         encoded_features = [
             'arriba_confidence',
             'starfusion_LargeAnchorSupport',
+            'fusioncatcher_Fusion_finding_method',
+            'starseqr_FUSION_CLASS',
+            'starseqr_SPLICE_TYPE',
+            'mapsplice2_doner_match_to_normal',
+            'starfusion_SpliceType',
+            'arriba_site1',
+            'arriba_site2',
+            'arriba_type'
         ]
     if extra_features is None:
         extra_features = [
-            'starfusion_FFPM', 'starfusion_LeftBreakEntropy', 'starfusion_RightBreakEntropy',
-            'arriba_coverage1', 'arriba_coverage2'
+            'starfusion_FFPM',
+            'starfusion_LeftBreakEntropy',
+            'starfusion_RightBreakEntropy',
+            'arriba_coverage1',
+            'arriba_coverage2',
+            'starseqr_OVERHANG_BQ15',
+            'starseqr_TPM_FUSION',
+            'starseqr_TPM_LEFT',
+            'starseqr_TPM_RIGHT',
+            'sum_J_S'
         ]
 
     for fusion in fusions:
@@ -78,10 +94,20 @@ def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, ex
         one_hot_encoded_columns = pd.get_dummies(x[feature], prefix=feature, dummy_na=True)
         x = pd.concat([x, one_hot_encoded_columns], axis=1).drop([feature], axis=1)
 
+    sample_out_dir = os.path.join(out_dir, 'sample_data')
+    os.makedirs(sample_out_dir, exist_ok=True)
 
     return x, y, fusions
 
-def assemble_data(samples, callers, out_dir, encoded_features=None, extra_features=None, assemble_truth=True):
+def assemble_data(
+        samples,
+        callers,
+        out_dir,
+        encoded_features=None,
+        extra_features=None,
+        assemble_truth=True,
+        tag=''):
+    import os
     import pandas as pd
 
     data = [
