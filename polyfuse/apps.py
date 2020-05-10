@@ -36,19 +36,49 @@ def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, ex
             'starseqr_SPLICE_TYPE',
             'mapsplice2_doner_match_to_normal',
             'starfusion_SpliceType',
+            'starfusion_LeftBreakDinuc', # left break dinucleotide
+            'starfusion_RightBreakDinuc',
+            # https://arriba.readthedocs.io/en/latest/output-files/
+            # arriba_site1/arriba_site2: These columns add information about the location of the
+            # breakpoints. Possible values are: splice-site (at an exon boundary and oriented in way that the transcript
+            # has likely been spliced), exon (inside an exon, but not at an exon boundary), intron, 5' UTR, 3' UTR, UTR
+            # (overlapping with a 5' UTR as well as a 3' UTR), and intergenic.
             'arriba_site1',
             'arriba_site2',
+            # https://arriba.readthedocs.io/en/latest/output-files/
+            # arriba_type: Based on the orientation of the supporting reads and the coordinates of breakpoints, the type of
+            # event can be inferred. Possible values are: translocation (between different chromosomes), duplication,
+            # inversion, and deletion. If genes are fused head-to-head or tail-to-tail, this is indicated as 5'-5' or
+            # 3'-3' respectively. Genes fused in such an orientation cannot yield a chimeric protein, since one of the
+            # genes is transcribed from the wrong strand. This type of event is equivalent to the truncation of the genes.
+            # Deletions with a size in the range of introns (<400kb) are flagged as read-through, because there is a high
+            # chance that the fusion arises from read-through transcription rather than an underlying genomic deletion.
+            # Intragenic duplications with both breakpoints at splice-sites are flagged as non-canonical-splicing, because
+            # the supporting reads might originate from circular RNA, which are very abundant even in normal tissue, but
+            # manifest as duplications in RNA-Seq data.
             'arriba_type'
         ]
     if extra_features is None:
         extra_features = [
+            # https://github.com/STAR-Fusion/STAR-Fusion/wiki
+            # The number of fusion-supporting reads depends on both the expression of the fusion transcript and the
+            # number of reads sequenced. The deeper the sequenced data set, the greater the number of artifactual
+            # fusions that will appear with minimal supporting evidence, and so taking into account the sequencing depth
+            # is important to curtail overzealous prediction of fusion transcripts with ever-so-minimal supporting
+            # evidence. We provide normalized measures of the fusion-supporting rna-seq fragments as FFPM (fusion
+            # fragments per million total reads) measures.
             'starfusion_FFPM',
+            # https://github.com/STAR-Fusion/STAR-Fusion/wiki
+            # 'LeftBreakEntropy' and 'RightBreakEntropy' represent the Shannon entropy of the 15 exonic bases flanking
+            # the breakpoint. The maximum entropy is 2, representing highest complexity. The lowest would be zero
+            # (involving a 15 base mononucleotide run). Low entropy sites should generally be treated as less confident
+            # breakpoints.
             'starfusion_LeftBreakEntropy',
             'starfusion_RightBreakEntropy',
             'arriba_coverage1',
             'arriba_coverage2',
-            'starseqr_OVERHANG_BQ15',
-            'starseqr_TPM_FUSION',
+            'starseqr_OVERHANG_BQ15', # Number of overhang fragmens with at least 15 base pairs
+            'starseqr_TPM_FUSION', # Expression of the most abundant fusion transcript expressed in transcripts per million
             'starseqr_TPM_LEFT',
             'starseqr_TPM_RIGHT',
             'sum_J_S'
