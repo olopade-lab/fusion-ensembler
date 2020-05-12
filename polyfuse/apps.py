@@ -591,8 +591,6 @@ def run_mapsplice2(
             '--rm',
             '-v {ctat_dir}:{ctat_dir}:ro',
             '-v {ref_split_by_chromosome_dir}:{ref_split_by_chromosome_dir}',
-            '-v {left_fq}:{left_fq}:ro',
-            '-v {right_fq}:{right_fq}:ro',
             '-v {output}:{output}',
             'hiroko/mapsplice2-hg19'
         ]
@@ -601,8 +599,6 @@ def run_mapsplice2(
             'singularity exec',
             '-B {ctat_dir}:{ctat_dir}',
             '-B {ref_split_by_chromosome_dir}:{ref_split_by_chromosome_dir}',
-            '-B {left_fq}:{left_fq}',
-            '-B {right_fq}:{right_fq}',
             '-B {output}:{output}',
             '{base_dir}/docker/mapsplice2.sif'
         ]
@@ -612,9 +608,9 @@ def run_mapsplice2(
     command += [
         'python mapsplice.py',
         '-c {ref_split_by_chromosome_dir}',
-        '-x {ctat_dir}/ref_genome.fa',
-        '-1 {left_fq}',
-        '-2 {right_fq}',
+        '-x {ref_split_by_chromosome_dir}/ref_genome.fa',
+        '-1 {output}/reads_1.fq',
+        '-2 {output}/reads_2.fq',
         '--fusion',
         '--gene-gtf {ctat_dir}/ref_annot.gtf',
         '--output {output}',
@@ -630,7 +626,7 @@ def run_mapsplice2(
         left_fq=left_fq,
         right_fq=right_fq,
         base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
-        threads=max(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 8)
+        threads=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 10)
         # TODO Prefer not to hardcoode this max, which is tweaked for IGSB config.
         # Need to switch to WorkQueue Parsl executor which will optimize resource packing.
     )
@@ -643,6 +639,9 @@ def build_gemtools_genome_index(
     import os
     import subprocess
     import multiprocessing
+
+    # FIXME for testing
+    return '/cephfs/users/annawoodard/polyfuse/data/library/chimpipe/hg19_genome_GEM/hg19.chr.gem'
 
     command = []
     if container_type == 'docker':
@@ -661,13 +660,19 @@ def build_gemtools_genome_index(
     else:
         raise RuntimeError('Container type must be either docker or singularity')
 
-    command += ['gemtools index -t {threads} -i {ctat_dir}/ref_genome.fa']
+    command += [
+        '/bin/bash -c "',
+        'cd {ctat_dir};',
+        'gemtools index',
+        '-t {threads}',
+        '-i {ctat_dir}/ref_genome.fa"'
+    ]
 
     subprocess.check_output(
         ' '.join(command).format(
             ctat_dir=ctat_dir,
             base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
-            threads=max(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 16)
+            threads=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 12)
         ),
         shell=True
     )
@@ -683,6 +688,9 @@ def build_gemtools_transcriptome_index_and_keys(
     import os
     import subprocess
     import multiprocessing
+
+    # FIXME testing
+    return '/cephfs/users/annawoodard/polyfuse/data/library/chimpipe/gencode_annot_v19_long_GEM/gencode.annot.v19.long.gtf.junctions.gem', '/cephfs/users/annawoodard/polyfuse/data/library/chimpipe/gencode_annot_v19_long_GEM/gencode.annot.v19.long.gtf.junctions.keys',
 
     command = []
     if container_type == 'docker':
@@ -717,7 +725,7 @@ def build_gemtools_transcriptome_index_and_keys(
             ctat_dir=ctat_dir,
             gemtools_genome_index=gemtools_genome_index,
             base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
-            threads=max(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 16)
+            threads=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 16)
         ),
         shell=True
     )
@@ -745,31 +753,35 @@ def run_chimpipe(
 
     transcriptome_index, transcriptome_keys = transcriptome_index_and_keys
     sample_id = os.path.basename(os.path.dirname(output))
+    gene_annotation = '/cephfs/users/annawoodard/polyfuse/data/library/chimpipe/gencode_annot_v19_long_GEM/gencode.annot.v19.long.gtf' # FIXME testing
+    # gene_annotation = os.path.join(ctat_dir, 'ref_annot.gtf')
+
 
     command = ['echo $HOSTNAME; mkdir -p {output}; ']
     if container_type == 'docker':
         command += [
             'docker run',
             '--rm',
-            '-v {ctat_dir}:{ctat_dir}',
+            '-v {gene_annotation}:{gene_annotation}',
             '-v {left_fq}:{left_fq}:ro',
             '-v {right_fq}:{right_fq}:ro',
             '-v {genome_index}:{genome_index}',
             '-v {transcriptome_index}:{transcriptome_index}',
             '-v {transcriptome_keys}:{transcriptome_keys}',
-            '-v {output}:/output',
-            'olopadelab/polyfuse'
+            '-v {output}:{output}',
+            # 'olopadelab/polyfuse'
+            'polyfuse'
         ]
     elif container_type == 'singularity':
         command += [
             'singularity exec',
-            '-B {ctat_dir}:{ctat_dir}',
+            '-B {gene_annotation}:{gene_annotation}',
             '-B {left_fq}:{left_fq}',
             '-B {right_fq}:{right_fq}',
             '-B {genome_index}:{genome_index}',
             '-B {transcriptome_index}:{transcriptome_index}',
             '-B {transcriptome_keys}:{transcriptome_keys}',
-            '-B {output}:/output',
+            '-B {output}:{output}',
             '{base_dir}/docker/polyfuse.sif'
         ]
     else:
@@ -777,12 +789,12 @@ def run_chimpipe(
 
     command += [
         '/bin/bash -c "',
-        'cd /output;',
+        'cd {output};',
         '/usr/local/src/ChimPipe*/ChimPipe.sh',
         '--fastq_1 {left_fq}',
         '--fastq_2 {right_fq}',
         '-g {genome_index}',
-        '-a {ctat_dir}/ref_annot.gtf',
+        '-a {gene_annotation}',
         '-t {transcriptome_index}',
         '-k {transcriptome_keys}',
         '--threads {threads}',
@@ -790,7 +802,7 @@ def run_chimpipe(
     ]
 
     return ' '.join(command).format(
-            ctat_dir=ctat_dir,
+            gene_annotation=gene_annotation,
             left_fq=left_fq,
             right_fq=right_fq,
             genome_index=genome_index,
@@ -799,7 +811,7 @@ def run_chimpipe(
             output=output,
             sample_id=sample_id,
             base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
-            threads=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 8)
+            threads=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 12)
         )
 
 
