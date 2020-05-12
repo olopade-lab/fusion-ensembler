@@ -3,7 +3,7 @@ import importlib
 import os
 import glob
 import subprocess
-from polyfuse import apps
+from polyfuse import calling
 
 import parsl
 parsl.set_stream_logger()
@@ -61,27 +61,27 @@ if args.container_type == 'singularity':
                 shell=True
             )
 
-fusion_catcher_build_dir = apps.download_fusioncatcher_build(
+fusion_catcher_build_dir = calling.download_fusioncatcher_build(
     output=os.path.join(args.library_dir, 'fusioncatcher')
 )
 
-ctat_dir = apps.download_ctat(
+ctat_dir = calling.download_ctat(
     args.library_dir,
     args.ctat_release
 )
 
-starseqr_star_index = apps.build_star_index(
+starseqr_star_index = calling.build_star_index(
     ctat_dir,
     'ref_genome.fa.starseqr.star.idx',
     container_type=args.container_type,
 )
 
-annotation = apps.download_ensemble_annotation(args.library_dir, args.ensemble_release)
-assembly = apps.download_ensemble_assembly(args.library_dir, args.ensemble_release)
-kallisto_index = apps.kallisto_index(assembly, args.container_type)
+annotation = calling.download_ensemble_annotation(args.library_dir, args.ensemble_release)
+assembly = calling.download_ensemble_assembly(args.library_dir, args.ensemble_release)
+kallisto_index = calling.kallisto_index(assembly, args.container_type)
 
-ref_split_by_chromosome_dir = apps.build_bowtie_index(
-    apps.split_ref_chromosomes(
+ref_split_by_chromosome_dir = calling.build_bowtie_index(
+    calling.split_ref_chromosomes(
         ctat_dir,
         container_type=args.container_type
     ),
@@ -100,8 +100,8 @@ for sample_dir in sample_dirs:
     else:
         print('Fastqs found for {}'.format(os.path.join(sample_dir, args.left_fq)))
 
-    left_fq = apps.gzip(
-        apps.merge_lanes(
+    left_fq = calling.gzip(
+        calling.merge_lanes(
             os.path.join(sample_dir, args.left_fq),
             args.out_dir,
             sample,
@@ -109,8 +109,8 @@ for sample_dir in sample_dirs:
         ),
         args.out_dir
     )
-    right_fq = apps.gzip(
-        apps.merge_lanes(
+    right_fq = calling.gzip(
+        calling.merge_lanes(
             os.path.join(sample_dir, args.right_fq),
             args.out_dir,
             sample,
@@ -119,25 +119,25 @@ for sample_dir in sample_dirs:
         args.out_dir
     )
 
-    arriba = apps.run_arriba(
+    arriba = calling.run_arriba(
         os.path.join(output, 'arriba'),
         ctat_dir,
         left_fq,
         right_fq,
         container_type=args.container_type
     )
-    apps.parse_arriba(os.path.join(output, 'arriba'), inputs=[arriba])
+    calling.parse_arriba(os.path.join(output, 'arriba'), inputs=[arriba])
 
-    starfusion = apps.run_starfusion(
+    starfusion = calling.run_starfusion(
         os.path.join(output, 'starfusion'),
         left_fq,
         right_fq,
         ctat_dir,
         container_type=args.container_type
     )
-    apps.parse_starfusion(os.path.join(output, 'starfusion'), inputs=[starfusion])
+    calling.parse_starfusion(os.path.join(output, 'starfusion'), inputs=[starfusion])
 
-    starseqr = apps.run_starseqr(
+    starseqr = calling.run_starseqr(
         os.path.join(output, 'starseqr'),
         left_fq,
         right_fq,
@@ -145,18 +145,18 @@ for sample_dir in sample_dirs:
         starseqr_star_index,
         container_type=args.container_type
     )
-    apps.parse_starseqr(os.path.join(output, 'starseqr'), inputs=[starseqr])
+    calling.parse_starseqr(os.path.join(output, 'starseqr'), inputs=[starseqr])
 
-    fusioncatcher = apps.run_fusioncatcher(
+    fusioncatcher = calling.run_fusioncatcher(
         os.path.join(output, 'fusioncatcher'),
         left_fq,
         right_fq,
         fusion_catcher_build_dir,
         container_type=args.container_type
     )
-    apps.parse_fusioncatcher(os.path.join(output, 'fusioncatcher'), inputs=[fusioncatcher])
+    calling.parse_fusioncatcher(os.path.join(output, 'fusioncatcher'), inputs=[fusioncatcher])
 
-    quant = apps.kallisto_quant(
+    quant = calling.kallisto_quant(
         kallisto_index,
         assembly,
         os.path.join(output, 'pizzly'),
@@ -165,16 +165,16 @@ for sample_dir in sample_dirs:
         container_type=args.container_type
     )
 
-    pizzly = apps.run_pizzly(
+    pizzly = calling.run_pizzly(
         quant,
         annotation,
         assembly,
         os.path.join(output, 'pizzly'),
         container_type=args.container_type
     )
-    apps.parse_pizzly(os.path.join(output, 'pizzly'), inputs=[pizzly])
+    calling.parse_pizzly(os.path.join(output, 'pizzly'), inputs=[pizzly])
 
-    mapsplice2 = apps.run_mapsplice2(
+    mapsplice2 = calling.run_mapsplice2(
         os.path.join(output, 'mapsplice2'),
         ctat_dir,
         ref_split_by_chromosome_dir,
@@ -182,9 +182,8 @@ for sample_dir in sample_dirs:
         right_fq,
         container_type=args.container_type
     )
-    apps.parse_mapsplice2(os.path.join(output, 'mapsplice2'), inputs=[mapsplice2])
+    calling.parse_mapsplice2(os.path.join(output, 'mapsplice2'), inputs=[mapsplice2])
 
 parsl.wait_for_current_tasks()
-truth = apps.concatenate_true_fusions(args.sample_dirs, args.out_dir)
 
 print('finished processing!')
