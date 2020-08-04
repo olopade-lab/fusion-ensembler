@@ -9,13 +9,13 @@ config = Config(
     executors=[
         HighThroughputExecutor(
             worker_debug=True,
-            max_workers=5,
+            max_workers=2,
             address=address_by_hostname(),
             provider=SlurmProvider(
                 'daenerys',
                 nodes_per_block=1,
-                init_blocks=15,
-                max_blocks=15,
+                init_blocks=10,
+                max_blocks=10,
                 scheduler_options='#SBATCH --exclude=kg15-11', # docker: Got permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Post http://%2Fvar%2Frun%2Fdocker.sock/v1.37/containers/create: dial unix /var/run/docker.sock: connect: permission denied.
                 # worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages',
                 # worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages; docker pull olopadelab/polyfuse',

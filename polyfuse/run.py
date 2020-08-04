@@ -95,10 +95,18 @@ for sample_dir in sample_dirs:
     os.makedirs(os.path.dirname(output), exist_ok=True)
     if (len(glob.glob(os.path.join(sample_dir, args.left_fq))) == 0) or  \
            (len(glob.glob(os.path.join(sample_dir, args.right_fq))) == 0):
-        print('No fastqs found; skipping {}'.format(sample_dir))
+        print('No fastqs found; skipping {} and {}'.format(
+            os.path.join(sample_dir, args.left_fq),
+            os.path.join(sample_dir, args.right_fq)
+            )
+        )
         continue
     else:
-        print('Fastqs found for {}'.format(os.path.join(sample_dir, args.left_fq)))
+        print('Fastqs found for {} and {}'.format(
+            os.path.join(sample_dir, args.left_fq),
+            os.path.join(sample_dir, args.right_fq)
+            )
+        )
 
     left_fq = calling.gzip(
         calling.merge_lanes(

@@ -1,7 +1,10 @@
 # TODO df['sample'] -> df.sample_id
 # TODO documentation
+# TODO split up assemble_data_per_sample to get rid of 'assemble_truth' keyword arg
 import parsl
 from parsl.app.app import bash_app, python_app
+
+from polyfuse.calling import parse_pizzly, parse_starseqr, parse_fusioncatcher, parse_mapsplice2, parse_starfusion, parse_arriba
 
 @python_app
 def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, extra_features=None, assemble_truth=True):
@@ -254,14 +257,14 @@ def predict_per_sample(data, sample, out_dir, model_dir, classifier_label, featu
     )
 
 
-def predict(samples, out_dir, model_dir, classifiers, callers, consensus=None):
+def predict(samples, out_dir, model_dir, classifiers, callers, consensus=None, assemble_truth=True):
     import pandas as pd
     import os
 
     futures = []
     for sample in samples:
         for features, label, transformation in classifiers:
-            sample_data = assemble_data_per_sample(sample, callers, out_dir)
+            sample_data = assemble_data_per_sample(sample, callers, out_dir, assemble_truth=assemble_truth)
             futures += [predict_per_sample(
                 sample_data,
                 sample,

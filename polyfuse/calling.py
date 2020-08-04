@@ -220,6 +220,7 @@ def build_star_index(
 def merge_lanes(fastq, out_dir, sample, tag='R1'):
     import glob
     import subprocess
+    import os
 
     if len(glob.glob(fastq)) == 1:
         return glob.glob(fastq)[0]
@@ -227,7 +228,8 @@ def merge_lanes(fastq, out_dir, sample, tag='R1'):
         merged_fastq = '{out_dir}/interim/{sample}/merged.{tag}.fastq{ext}'.format(
             out_dir=out_dir,
             tag=tag,
-            ext='.gz' if glob.glob(fastq)[0].endswith('.gz') else ''
+            ext='.gz' if glob.glob(fastq)[0].endswith('.gz') else '',
+            sample=sample
         )
         subprocess.check_output(
             'mkdir -p {dirname}; cat {fastq} > {merged_fastq}'.format(
