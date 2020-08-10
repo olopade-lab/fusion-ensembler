@@ -675,8 +675,8 @@ def download_ctat(library_dir, ctat_release):
     import os
     import subprocess
 
-    if os.path.isfile(os.path.join(library_dir, ctat_release, 'download.success')):
-        return os.path.join(library_dir, ctat_release, 'ctat_genome_lib_build_dir')
+    if os.path.isfile(os.path.join(library_dir, ctat_release + '.plug-n-play', 'download.success')):
+        return os.path.join(library_dir, ctat_release + '.plug-n-play', 'ctat_genome_lib_build_dir')
 
     command = """
     cd {library_dir}
