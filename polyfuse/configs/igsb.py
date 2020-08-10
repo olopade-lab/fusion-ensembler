@@ -14,13 +14,13 @@ config = Config(
             provider=SlurmProvider(
                 'daenerys',
                 nodes_per_block=1,
-                init_blocks=10,
-                max_blocks=10,
+                init_blocks=20,
+                max_blocks=20,
                 scheduler_options='#SBATCH --exclude=kg15-11', # docker: Got permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock: Post http://%2Fvar%2Frun%2Fdocker.sock/v1.37/containers/create: dial unix /var/run/docker.sock: connect: permission denied.
                 # worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages',
                 # worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages; docker pull olopadelab/polyfuse',
                 worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages; docker load -i /cephfs/users/annawoodard/polyfuse/docker/polyfuse.tar',
-                walltime='48:00:00'
+                walltime='240:00:00'
             ),
         )
     ],
