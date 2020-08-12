@@ -58,8 +58,7 @@ def build_bowtie_index(
     command = []
     if container_type == 'docker':
         command += [
-            'docker run',
-            '--rm',
+            'bash {wrap_dir}/wrap_docker.sh',
             '-v {ref_split_by_chromosome_dir}:{ref_split_by_chromosome_dir}',
             'olopadelab/polyfuse'
         ]
@@ -82,6 +81,7 @@ def build_bowtie_index(
 
     subprocess.check_output(
             ' '.join(command).format(
+            wrap_dir=os.path.dirname(os.path.abspath(__file__)),
             ref_split_by_chromosome_dir=ref_split_by_chromosome_dir,
             chromosome_refs=','.join(chromosome_refs),
             threads=os.environ.get('PARSL_CORES', int(multiprocessing.cpu_count() / 1.5))
@@ -115,8 +115,7 @@ def run_mapsplice2(
     ]
     if container_type == 'docker':
         command += [
-            'docker run',
-            '--rm',
+            'bash {wrap_dir}/wrap_docker.sh',
             '-v {ctat_dir}:{ctat_dir}:ro',
             '-v {ref_split_by_chromosome_dir}:{ref_split_by_chromosome_dir}',
             '-v {output}:{output}',
@@ -148,6 +147,7 @@ def run_mapsplice2(
     ]
 
     return ' '.join(command).format(
+        wrap_dir=os.path.dirname(os.path.abspath(__file__)),
         output=output,
         ctat_dir=ctat_dir,
         ref_split_by_chromosome_dir=ref_split_by_chromosome_dir,
@@ -175,8 +175,7 @@ def build_star_index(
     command = ['mkdir -p {output};']
     if container_type == 'docker':
         command += [
-            'docker run',
-            '--rm',
+            'bash {wrap_dir}/wrap_docker.sh',
             '-v {output}:/output',
             '-v {ctat_dir}/ref_genome.fa:/assembly:ro',
             '-v {ctat_dir}/ref_annot.gtf:/annotation:ro',
@@ -205,6 +204,7 @@ def build_star_index(
 
     subprocess.check_output(
         ' '.join(command).format(
+            wrap_dir=os.path.dirname(os.path.abspath(__file__)),
             ctat_dir=ctat_dir,
             output=output,
             base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
@@ -275,8 +275,7 @@ def run_arriba(
     command = ['echo $HOSTNAME; mkdir -p {output}; ']
     if container_type == 'docker':
         command += [
-            'docker run',
-            '--rm',
+            'bash {wrap_dir}/wrap_docker.sh',
             '-v {ctat_dir}/ref_genome.fa:/assembly:ro',
             '-v {ctat_dir}/ref_annot.gtf:/annotation:ro',
             '-v {left_fq}:{left_fq}:ro',
@@ -313,6 +312,7 @@ def run_arriba(
     ]
 
     return ' '.join(command).format(
+            wrap_dir=os.path.dirname(os.path.abspath(__file__)),
             output=output,
             ctat_dir=ctat_dir,
             left_fq=left_fq,
@@ -449,8 +449,7 @@ def run_starfusion(
     command = ['echo $HOSTNAME; mkdir -p {output}; ']
     if container_type == 'docker':
         command += [
-            'docker run',
-            '--rm',
+            'bash {wrap_dir}/wrap_docker.sh',
             '-v {left_fq}:{left_fq}:ro',
             '-v {right_fq}:{right_fq}:ro',
             '-v {ctat_dir}:/ctat_dir:ro',
@@ -482,6 +481,7 @@ def run_starfusion(
     ]
 
     return ' '.join(command).format(
+        wrap_dir=os.path.dirname(os.path.abspath(__file__)),
         base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
         left_fq=left_fq,
         right_fq=right_fq,
@@ -542,8 +542,7 @@ def run_starseqr(
     command = ['echo $HOSTNAME; mkdir -p {output}; ']
     if container_type == 'docker':
         command += [
-            'docker run',
-            '--rm',
+            'bash {wrap_dir}/wrap_docker.sh',
             '-v {left_fq}:{left_fq}:ro',
             '-v {right_fq}:{right_fq}:ro',
             '-v {ctat_dir}:/ctat_dir:ro',
@@ -580,6 +579,7 @@ def run_starseqr(
     ]
 
     return ' '.join(command).format(
+        wrap_dir=os.path.dirname(os.path.abspath(__file__)),
         star_index=star_index,
         output=output,
         ctat_dir=ctat_dir,
@@ -728,8 +728,7 @@ def run_fusioncatcher(
     command = ['echo $HOSTNAME; mkdir -p {output}; ']
     if container_type == 'docker':
         command += [
-            'docker run',
-            '--rm',
+            'bash {wrap_dir}/wrap_docker.sh',
             '-v {left_fq}:{left_fq}:ro',
             '-v {right_fq}:{right_fq}:ro',
             '-v {build_dir}/current:/build_dir:ro',
@@ -759,6 +758,7 @@ def run_fusioncatcher(
     ]
 
     return ' '.join(command).format(
+        wrap_dir=os.path.dirname(os.path.abspath(__file__)),
         output=output,
         build_dir=build_dir,
         base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
@@ -814,8 +814,7 @@ def kallisto_index(
     command = ['echo $HOSTNAME; ']
     if container_type == 'docker':
         command += [
-            'docker run',
-            '--rm',
+            'bash {wrap_dir}/wrap_docker.sh',
             '-v {fasta_dir}:/fasta_dir',
             'olopadelab/polyfuse'
         ]
@@ -833,6 +832,7 @@ def kallisto_index(
     ]
 
     return ' '.join(command).format(
+        wrap_dir=os.path.dirname(os.path.abspath(__file__)),
         fasta_dir=os.path.dirname(fasta_path),
         fasta=os.path.basename(fasta_path),
         base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]),
@@ -854,8 +854,7 @@ def kallisto_quant(
     command = ['echo $HOSTNAME; mkdir -p {output}; ']
     if container_type == 'docker':
         command += [
-            'docker run',
-            '--rm',
+            'bash {wrap_dir}/wrap_docker.sh',
             '-v {left_fq}:{left_fq}:ro',
             '-v {right_fq}:{right_fq}:ro',
             '-v {fasta_dir}:/fasta_dir',
@@ -884,6 +883,7 @@ def kallisto_quant(
     ]
 
     return ' '.join(command).format(
+        wrap_dir=os.path.dirname(os.path.abspath(__file__)),
         output=output,
         left_fq=left_fq,
         right_fq=right_fq,
@@ -906,8 +906,7 @@ def run_pizzly(
     command = ['echo $HOSTNAME; mkdir -p {output}; ']
     if container_type == 'docker':
         command += [
-            'docker run',
-            '--rm',
+            'bash {wrap_dir}/wrap_docker.sh',
             '-v {gtf}:{gtf}',
             '-v {fasta}:{fasta}',
             '-v {output}:/output',
@@ -939,6 +938,7 @@ def run_pizzly(
     ]
 
     return ' '.join(command).format(
+        wrap_dir=os.path.dirname(os.path.abspath(__file__)),
         output=output,
         gtf=os.path.abspath(gtf),
         fasta=os.path.abspath(fasta),
