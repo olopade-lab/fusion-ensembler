@@ -34,6 +34,7 @@ args.out_dir = os.path.abspath(args.out_dir)
 spec = importlib.util.spec_from_file_location('', args.config)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
+module.config.run_dir = os.path.join(args.out_dir, 'rundir')
 parsl.load(module.config)
 
 
@@ -47,7 +48,7 @@ if args.container_type == 'singularity':
                 # ('pizzly.sif', 'olopadelab/pizzly:latest'),
                 ('starseqr.sif', 'eagenomics/starseqr:0.6.7'),
                 ('fusioncatcher.sif', 'olopadelab/fusioncatcher:latest'),
-                ('starfusion.sif', 'trinityctat/starfusion:1.8.0')
+                ('starfusion.sif', 'trinityctat/starfusion:1.8.0'),
                 ('mapsplice2.sif', 'hiroko/mapsplice2-hg19')
             ]:
         image_path = '{base_dir}/docker/{local}'.format(base_dir=base_dir, local=local)

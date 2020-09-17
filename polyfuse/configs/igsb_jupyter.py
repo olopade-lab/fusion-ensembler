@@ -12,11 +12,12 @@ config = Config(
             provider=SlurmProvider(
                 'daenerys',
                 nodes_per_block=1,
-                init_blocks=15,
-                max_blocks=15,
+                init_blocks=10,
+                max_blocks=10,
+                worker_init='source activate gf',
                 # worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages',
                 # worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages; docker pull olopadelab/polyfuse',
-                worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages; docker load -i /cephfs/users/annawoodard/polyfuse/docker/polyfuse.tar',
+                # worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages',
                 walltime='48:00:00'
             ),
         )
