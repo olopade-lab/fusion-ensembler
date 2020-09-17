@@ -13,4 +13,7 @@ setup(
     packages=find_packages(),
     install_requires=['parsl', 'seaborn', 'joblib', 'sklearn', 'tables', 'pyfaidx', 'upsetplot', 'twine'],
     keywords=['Workflows', 'Scientific computing', 'fusion transcript detection', 'bioinformatics'],
+    entry_points = {
+        'console_scripts': ['polyfuse=polyfuse.polyfuse:run'],
+    }
 )
