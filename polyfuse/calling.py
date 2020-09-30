@@ -91,6 +91,37 @@ def build_bowtie_index(
 
     return ref_split_by_chromosome_dir
 
+# def assemble_command(
+#         container_type,
+#         container,
+#         bind_dirs,
+#         command,
+#         prefix=None,
+#         postfix=None):
+#     if prefix is None:
+#         prefix = []
+#     if postfix is None:
+#         postfix = []
+#     command = '; '.join(prefix) + '; '
+#     if container_type == 'docker':
+#         command += 'docker run --rm'
+
+#         command += [
+#             'docker run',
+#             '--rm',
+#             '-v {ctat_dir}:{ctat_dir}:ro',
+#             '-v {ref_split_by_chromosome_dir}:{ref_split_by_chromosome_dir}',
+#             '-v {output}:{output}',
+#             'hiroko/mapsplice2-hg19'
+#         ]
+#     elif container_type == 'singularity':
+#         command += [
+#             'singularity exec',
+#             '-B {ctat_dir}:{ctat_dir}',
+#             '-B {ref_split_by_chromosome_dir}:{ref_split_by_chromosome_dir}',
+#             '-B {output}:{output}',
+#             '{base_dir}/docker/mapsplice2.sif'
+#         ]
 
 @bash_app(cache=True)
 def run_mapsplice2(
@@ -586,7 +617,8 @@ def run_starseqr(
         base_dir='/'.join(os.path.abspath(__file__).split('/')[:-2]), # FIXME allow custom outdir
         left_fq=left_fq,
         right_fq=right_fq,
-        cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 8)
+        # too small of number of cores will give: [22167 rows x 6 columns]]'. Reason: 'IOError('bad message length',)'
+        cores=min(os.environ.get('PARSL_CORES', multiprocessing.cpu_count()), 16)
     )
 
 

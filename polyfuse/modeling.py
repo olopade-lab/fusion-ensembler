@@ -16,7 +16,10 @@ def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, ex
     # caller_data = pd.read_hdf(os.path.join(out_dir, 'caller_data.hdf'), 'data')
     sample_data = all_caller_data[all_caller_data['sample'] == sample]
     if not set(callers).issubset(set(sample_data.caller.unique())):
-        return None
+        for missing_caller in set(callers) - set(sample_data.caller.unique()):
+            # if the pickle file is there, assume job finished successfully but no fusions were found
+            if not os.path.isfile(os.path.join(out_dir, sample, missing_caller, 'fusions.pkl')):
+                raise RuntimeError('problem processing sample {}: missing {}'.format(sample, missing_caller))
 
     if assemble_truth:
         true_fusions = pd.read_hdf(os.path.join(out_dir, 'true_fusions.hdf'), 'data')

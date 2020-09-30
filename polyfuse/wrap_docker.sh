@@ -4,10 +4,10 @@ function cleanup {
     DOCKER_CONTAINER=$(cat ${container_id_file})
     if [[ -n "${DOCKER_CONTAINER}" ]]
     then
-        echo cleaning up container ${DOCKER_CONTAINER}
+        echo [$(date +"%T")] cleaning up container ${DOCKER_CONTAINER}
         docker stop "${DOCKER_CONTAINER}"
         docker rm --force  "${DOCKER_CONTAINER}"
-        echo done cleaning up
+        echo [$(date +"%T")] done cleaning up
     fi
     rm -f "${container_id_file}"
 }
