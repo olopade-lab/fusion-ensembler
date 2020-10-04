@@ -7,7 +7,7 @@ from parsl.app.app import bash_app, python_app
 from polyfuse.calling import parse_pizzly, parse_starseqr, parse_fusioncatcher, parse_mapsplice2, parse_starfusion, parse_arriba
 
 @python_app
-def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, extra_features=None, assemble_truth=True):
+def extract_features_per_sample(sample, callers, out_dir, encoded_features=None, extra_features=None, assemble_truth=True):
     import os
     import pandas as pd
     import numpy as np
@@ -132,7 +132,7 @@ def assemble_data_per_sample(sample, callers, out_dir, encoded_features=None, ex
 
     return x, y, fusions
 
-def assemble_data(
+def extract_features(
         samples,
         callers,
         out_dir,
@@ -144,7 +144,7 @@ def assemble_data(
     import pandas as pd
 
     data = [
-        assemble_data_per_sample(
+        extract_features_per_sample(
             sample,
             callers,
             out_dir,
@@ -267,7 +267,7 @@ def predict(samples, out_dir, model_dir, classifiers, callers, consensus=None, a
     futures = []
     for sample in samples:
         for features, label, transformation in classifiers:
-            sample_data = assemble_data_per_sample(sample, callers, out_dir, assemble_truth=assemble_truth)
+            sample_data = extract_features_per_sample(sample, callers, out_dir, assemble_truth=assemble_truth)
             futures += [predict_per_sample(
                 sample_data,
                 sample,
