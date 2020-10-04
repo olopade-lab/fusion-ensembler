@@ -31,5 +31,5 @@ def get_consensus(sets, quorum):
 
         if len(intersections) > 0:
             return set.union(*intersections)
-    return {}
+    return set()
 
