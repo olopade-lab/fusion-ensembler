@@ -7,7 +7,14 @@ from parsl.app.app import bash_app, python_app
 from polyfuse.calling import parse_pizzly, parse_starseqr, parse_fusioncatcher, parse_mapsplice2, parse_starfusion, parse_arriba
 
 @python_app
-def extract_features_per_sample(sample, callers, out_dir, encoded_features=None, extra_features=None, assemble_truth=True):
+def extract_features_per_sample(
+        sample,
+        callers,
+        out_dir,
+        encoded_features=None,
+        extra_features=None,
+        assemble_truth=True,
+        skip_bad_inputs=False):
     import os
     import pandas as pd
     import numpy as np
@@ -19,6 +26,8 @@ def extract_features_per_sample(sample, callers, out_dir, encoded_features=None,
         for missing_caller in set(callers) - set(sample_data.caller.unique()):
             # if the pickle file is there, assume job finished successfully but no fusions were found
             if not os.path.isfile(os.path.join(out_dir, sample, missing_caller, 'fusions.pkl')):
+                if skip_bad_inputs:
+                    return None
                 raise RuntimeError('problem processing sample {}: missing {}'.format(sample, missing_caller))
 
     if assemble_truth:
@@ -139,7 +148,8 @@ def extract_features(
         encoded_features=None,
         extra_features=None,
         assemble_truth=True,
-        tag=''):
+        tag='',
+        skip_bad_inputs=False):
     import os
     import pandas as pd
 
@@ -150,7 +160,8 @@ def extract_features(
             out_dir,
             encoded_features,
             extra_features,
-            assemble_truth=assemble_truth
+            assemble_truth=assemble_truth,
+            skip_bad_inputs=skip_bad_inputs
         )
         for sample in samples
     ]
@@ -260,14 +271,21 @@ def predict_per_sample(data, sample, out_dir, model_dir, classifier_label, featu
     )
 
 
-def predict(samples, out_dir, model_dir, classifiers, callers, consensus=None, assemble_truth=True):
+def predict(samples, out_dir, model_dir, classifiers, callers, consensus=None, assemble_truth=True,
+        skip_bad_inputs=False):
     import pandas as pd
     import os
 
     futures = []
     for sample in samples:
         for features, label, transformation in classifiers:
-            sample_data = extract_features_per_sample(sample, callers, out_dir, assemble_truth=assemble_truth)
+            sample_data = extract_features_per_sample(
+                sample,
+                callers,
+                out_dir,
+                assemble_truth=assemble_truth,
+                skip_bad_inputs=skip_bad_inputs
+            )
             futures += [predict_per_sample(
                 sample_data,
                 sample,
