@@ -394,6 +394,8 @@ def parse_arriba(out_dir, inputs=[]):
     sample = path.split('/')[-3]
     caller = path.split('/')[-2]
     data = pd.read_csv(path, sep='\t')
+    if len(data) == 0:
+        return None
     # data = data[data.confidence.str.contains('medium|high')]
     data.rename(columns={
         '#gene1': 'gene1',
@@ -405,8 +407,25 @@ def parse_arriba(out_dir, inputs=[]):
     data['junction_reads'] = data.split_reads1 + data.split_reads2
     data['caller'] = caller
     data['sample'] = sample
+    data['breakpointandchrom1'] = data['breakpoint1']
+    data['breakpointandchrom2'] = data['breakpoint2']
+    data['breakpoint1'] = data['breakpointandchrom1'].str.extract(pat='.*\:(.*)')
+    data['breakpoint2'] = data['breakpointandchrom2'].str.extract(pat='.*\:(.*)')
+    data['chromosome1'] = data['breakpointandchrom1'].str.extract(pat='(.*)\:.*')
+    data['chromosome2'] = data['breakpointandchrom2'].str.extract(pat='(.*)\:.*')
 
-    common_columns = ['sample', 'caller', 'gene1', 'gene2', 'junction_reads', 'spanning_reads']
+    common_columns = [
+        'sample',
+        'caller',
+        'gene1',
+        'gene2',
+        'junction_reads',
+        'spanning_reads',
+        'breakpoint1',
+        'breakpoint2',
+        'chromosome1',
+        'chromosome2'
+    ]
     data.rename(columns={c: 'arriba_' + c for c in data.columns if c not in common_columns}, inplace=True)
 
     output = os.path.join(os.path.dirname(path), 'fusions.pkl')
@@ -444,16 +463,31 @@ def parse_mapsplice2(out_dir, inputs=[]):
     data = pd.read_csv(path, sep='\t', names=columns, index_col=False)
     data['gene1'] = [d.strip(',') for d in data['annotated_gene_donor']]
     data['gene2'] = [d.strip(',') for d in data['annotated_gene_acceptor']]
+    data['chromosome1'] = data.chrom.str.extract(pat='(.*)~.*')
+    data['chromosome2'] = data.chrom.str.extract(pat='.*~(.*)')
     data['caller'] = caller
     data['sample'] = sample
     data.rename(columns={
         'coverage': 'junction_reads', # coverage: number of reads aligned to the fusion junction
         'encompassing_read_pair_count': 'spanning_reads',  # encompassing_read_pair_count: number of reads pairs surrounding (but not crossing) the fusion
+        'doner_end': 'breakpoint1',
+        'acceptor_start': 'breakpoint2'
         },
         inplace=True
     )
 
-    common_columns = ['sample', 'caller', 'gene1', 'gene2', 'junction_reads', 'spanning_reads']
+    common_columns = [
+        'sample',
+        'caller',
+        'gene1',
+        'gene2',
+        'junction_reads',
+        'spanning_reads',
+        'breakpoint1',
+        'breakpoint2',
+        'chromosome1',
+        'chromosome2'
+    ]
     data.rename(columns={c: 'mapsplice2_' + c for c in data.columns if c not in common_columns}, inplace=True)
 
     output = os.path.join(os.path.dirname(path), 'fusions.pkl')
@@ -534,12 +568,21 @@ def parse_starfusion(out_dir, inputs=[]):
     sample = path.split('/')[-3]
     caller = path.split('/')[-2]
     data = pd.read_csv(path, sep='\t')
+    if len(data) == 0:
+        return None
 
-    data['breakpoint1'] = data['LeftBreakpoint'].str.rstrip('\:\+|\:\-').str.lstrip('chr')
-    data['breakpoint2'] = data['RightBreakpoint'].str.rstrip('\:\+|\:\-').str.lstrip('chr')
-    pattern = re.compile(r'\^.*')
-    data['gene1'] = data.LeftGene.str.replace(pattern, '')
-    data['gene2'] = data.RightGene.str.replace(pattern, '')
+    data['gene1'] = data.LeftGene.str.extract(pat='(.*)\^.*')
+    data['gene2'] = data.RightGene.str.extract(pat='(.*)\^.*')
+    data['chromosome1'] = data['LeftBreakpoint'].str.extract(pat='chr(.*)\:.*\:.*')
+    data['chromosome2'] = data['RightBreakpoint'].str.extract(pat='chr(.*)\:.*\:.*')
+    data['breakpoint1'] = data['LeftBreakpoint'].str.extract(pat='.*\:(.*)\:.*')
+    data['breakpoint2'] = data['RightBreakpoint'].str.extract(pat='.*\:(.*)\:.*')
+
+    # # data['breakpoint1'] = data['LeftBreakpoint'].str.rstrip('\:\+|\:\-').str.lstrip('chr')
+    # # data['breakpoint2'] = data['RightBreakpoint'].str.rstrip('\:\+|\:\-').str.lstrip('chr')
+    # pattern = re.compile(r'\^.*')
+    # data['gene1'] = data.LeftGene.str.replace(pattern, '')
+    # data['gene2'] = data.RightGene.str.replace(pattern, '')
     data['caller'] = caller
     data['sample'] = sample
     data.rename(columns={
@@ -549,7 +592,18 @@ def parse_starfusion(out_dir, inputs=[]):
         inplace=True
     )
 
-    common_columns = ['sample', 'caller', 'gene1', 'gene2', 'junction_reads', 'spanning_reads']
+    common_columns = [
+        'sample',
+        'caller',
+        'gene1',
+        'gene2',
+        'junction_reads',
+        'spanning_reads',
+        'breakpoint1',
+        'breakpoint2',
+        'chromosome1',
+        'chromosome2'
+    ]
     data.rename(columns={c: 'starfusion_' + c for c in data.columns if c not in common_columns}, inplace=True)
 
     output = os.path.join(os.path.dirname(path), 'fusions.pkl')
@@ -633,24 +687,37 @@ def parse_starseqr(out_dir, inputs=[]):
     sample = out_dir.split('/')[-2]
     caller = out_dir.split('/')[-1]
     data = pd.read_csv(path, sep='\t')
+    if len(data) == 0:
+        return None
 
     # data = data[data['DISPOSITION'] == 'PASS']
     data['gene1'] = data['LEFT_SYMBOL']
     data['gene2'] = data['RIGHT_SYMBOL']
-    data['chromosome1'] = data.BRKPT_LEFT.str.extract(pat='(^\d.*)\:\d.*\:.*')
-    data['chromosome2'] = data.BRKPT_RIGHT.str.extract(pat='(^\d.*)\:\d.*\:.*')
+    data['chromosome1'] = data.BRKPT_LEFT.str.extract(pat='^chr(.*)\:.*\:.*')
+    data['chromosome2'] = data.BRKPT_RIGHT.str.extract(pat='^chr(.*)\:.*\:.*')
     # Transformation below is because starseqr is 0-indexed while the other callers are 1-indexed
-    data['breakpoint1'] = data.BRKPT_LEFT.str.extract(pat='^\d.*\:(\d.*)\:.*').astype(float).astype('Int64') + 1
-    data.breakpoint1 = data.chromosome1 + ':' + data.breakpoint1.astype(str)
-    data['breakpoint2'] = data.BRKPT_RIGHT.str.extract(pat='^\d.*\:(\d.*)\:.*').astype(float).astype('Int64') + 1
-    data.breakpoint2 = data.chromosome2 + ':' + data.breakpoint2.astype(str)
+    data['breakpoint1'] = data.BRKPT_LEFT.str.extract(pat='^.*\:(.*)\:.*').astype(float).astype('Int64') + 1
+    # data.breakpoint1 = data.chromosome1 + ':' + data.breakpoint1.astype(str)
+    data['breakpoint2'] = data.BRKPT_RIGHT.str.extract(pat='^.*\:(.*)\:.*').astype(float).astype('Int64') + 1
+    # data.breakpoint2 = data.chromosome2 + ':' + data.breakpoint2.astype(str)
     # data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
     data['junction_reads'] = data.NREAD_JXNLEFT + data.NREAD_JXNRIGHT
     data.rename(columns={'NREAD_SPANS': 'spanning_reads'}, inplace=True)
     data['caller'] = caller
     data['sample'] = sample
 
-    common_columns = ['sample', 'caller', 'gene1', 'gene2', 'junction_reads', 'spanning_reads']
+    common_columns = [
+        'sample',
+        'caller',
+        'gene1',
+        'gene2',
+        'junction_reads',
+        'spanning_reads',
+        'breakpoint1',
+        'breakpoint2',
+        'chromosome1',
+        'chromosome2'
+    ]
     data.rename(columns={c: 'starseqr_' + c for c in data.columns if c not in common_columns}, inplace=True)
 
     output = os.path.join(out_dir, 'fusions.pkl')
@@ -811,6 +878,8 @@ def parse_fusioncatcher(out_dir, inputs=[]):
     caller = path.split('/')[-2]
 
     data = pd.read_csv(path, sep='\t')
+    if len(data) == 0:
+        return None
     data.rename(columns={
         'Gene_1_symbol(5end_fusion_partner)': 'gene1',
         'Gene_2_symbol(3end_fusion_partner)': 'gene2',
@@ -822,8 +891,23 @@ def parse_fusioncatcher(out_dir, inputs=[]):
     data['fusion'] = data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1)
     data['caller'] = caller
     data['sample'] = sample
+    data['breakpoint1'] = data['Fusion_point_for_gene_1(5end_fusion_partner)'].str.extract(pat='.*\:(.*)\:.*')
+    data['breakpoint2'] = data['Fusion_point_for_gene_2(3end_fusion_partner)'].str.extract(pat='.*\:(.*)\:.*')
+    data['chromosome1'] = data['Fusion_point_for_gene_1(5end_fusion_partner)'].str.extract(pat='(.*)\:.*\:.*')
+    data['chromosome2'] = data['Fusion_point_for_gene_2(3end_fusion_partner)'].str.extract(pat='(.*)\:.*\:.*')
 
-    common_columns = ['sample', 'caller', 'gene1', 'gene2', 'junction_reads', 'spanning_reads']
+    common_columns = [
+        'sample',
+        'caller',
+        'gene1',
+        'gene2',
+        'junction_reads',
+        'spanning_reads',
+        'breakpoint1',
+        'breakpoint2',
+        'chromosome1',
+        'chromosome2'
+    ]
     data.rename(columns={c: 'fusioncatcher_' + c for c in data.columns if c not in common_columns}, inplace=True)
 
     output = os.path.join(os.path.dirname(path), 'fusions.pkl')

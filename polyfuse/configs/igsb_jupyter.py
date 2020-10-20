@@ -12,14 +12,16 @@ config = Config(
             provider=SlurmProvider(
                 'daenerys',
                 nodes_per_block=1,
-                init_blocks=10,
-                max_blocks=10,
-                worker_init='source activate gf',
+                init_blocks=5,
+                max_blocks=5,
+                # worker_init='source activate gf',
+                worker_init='cd /cephfs/users/annawoodard/; source .profile; source setup_conda.sh; conda activate gf',
                 # worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages',
                 # worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages; docker pull olopadelab/polyfuse',
                 # worker_init='docker stop $(docker ps -aq); export PYTHONPATH=$PYTHONPATH:/cephfs/users/annawoodard/.local/lib/python3.7/site-packages',
-                walltime='48:00:00'
+                walltime='48:00:00',
             ),
         )
-    ]
+    ],
+    strategy=None
 )
