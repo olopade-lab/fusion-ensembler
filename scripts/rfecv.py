@@ -26,11 +26,11 @@ import parsl
 parsl.clear()
 
 # from polyfuse.configs.local import config
-from polyfuse.configs.igsb import config
+from polyfuse.configs.igsb_jupyter import config
 parsl.load(config)
 
 
-from polyfuse import apps, transformations
+from polyfuse import modeling, transformations
 
 out_dir = '/cephfs/users/annawoodard/polyfuse/data/sim_50/processed'
 training_fraction = 0.85
@@ -38,13 +38,14 @@ callers = ['starseqr', 'starfusion', 'arriba', 'fusioncatcher', 'pizzly', 'mapsp
 
 print('calculating recursive feature eliminatioin with cross-fold validation')
 
-parsed_caller_data = apps.parse_caller_data(out_dir, callers)
+parsed_caller_data = modeling.parse_caller_data(out_dir, callers)
 
-caller_data_path = apps.concatenate_caller_data(out_dir, inputs=parsed_caller_data)
+caller_data_path = modeling.concatenate_caller_data(out_dir, inputs=parsed_caller_data)
 caller_data = pd.read_hdf(caller_data_path.result(), 'data')
 
 samples = sorted(caller_data['sample'].unique())
 training_samples = samples[:int(len(samples) * training_fraction)]
+training_samples = samples[:30] # FIXME
 print('will use {} samples'.format(len(training_samples)))
 
 encoded_features = [
@@ -137,7 +138,7 @@ extra_features = [
 ]
 
 start = time.time()
-x_train, y_train = apps.assemble_data(
+x_train, y_train = modeling.extract_features(
     training_samples,
     callers,
     out_dir,
@@ -146,8 +147,9 @@ x_train, y_train = apps.assemble_data(
     tag='all_features'
 
 )
-print('assembled data in {:.1f}s'.format((time.time() - start)))
+print('extracted features in {:.1f}s'.format((time.time() - start)))
 print('optimizing over {} features'.format(x_train.shape[1]))
+print(x_train.columns)
 
 start = time.time()
 # classifier = ensemble.GradientBoostingClassifier(learning_rate=0.05, n_estimators=1250, subsample=1.)
@@ -155,7 +157,7 @@ classifier = ensemble.GradientBoostingClassifier()
 classifier.fit(x_train, y_train)
 
 
-rfecv = RFECV(classifier, cv=5, step=1, scoring='recall', n_jobs=-1)
+rfecv = RFECV(classifier, cv=5, step=1, scoring='f1', n_jobs=-1)
 rfecv = rfecv.fit(x_train, y_train)
 
 rfecv_features = [feature for support, feature in zip(rfecv.get_support(), x_train.columns) if support]
@@ -172,7 +174,7 @@ plt.savefig('../notebooks/plots/rfecv_feature_importances.pdf')
 
 fig, ax = plt.subplots()
 plt.xlabel("number of features selected")
-plt.ylabel("recall")
+plt.ylabel("f1")
 plt.plot(range(1, len(rfecv.grid_scores_) + 1), rfecv.grid_scores_)
 ax.xaxis.set_major_formatter(FormatStrFormatter('%.0f'))
 plt.savefig('../notebooks/plots/rfecv_feature_counts.pdf')

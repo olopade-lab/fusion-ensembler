@@ -93,16 +93,23 @@ def extract_features_per_sample(
             'starseqr_TPM_FUSION', # Expression of the most abundant fusion transcript expressed in transcripts per million
             'starseqr_TPM_LEFT',
             'starseqr_TPM_RIGHT',
-            'sum_J_S'
+            'sum_J_S',
+            'starseqr_JXN_BQ15',
+            'starseqr_SPAN_BQ15',
+            'junction_reads'
         ]
 
     for fusion in fusions:
         row = sample_data.loc[sample_data.fusion == fusion, ['spanning_reads', 'junction_reads']].mean().values.tolist()
+        row += sample_data.loc[sample_data.fusion == fusion, ['spanning_reads', 'junction_reads']].max().values.tolist()
+        row += sample_data.loc[sample_data.fusion == fusion, ['spanning_reads', 'junction_reads']].min().values.tolist()
+        supporting_callers = 0
         for c in callers:
             cut = (sample_data.fusion == fusion) & (sample_data.caller == c)
             data = sample_data.loc[cut, ['spanning_reads', 'junction_reads']]
             if len(data) > 0:
                 row += [1] + data.values[0].tolist()
+                supporting_callers += 1
             else:
                 row += [0, 0, 0]
                 # Below was an attempt to impute missing data-- did not improve performance
@@ -117,14 +124,23 @@ def extract_features_per_sample(
             index = view.first_valid_index()
             row += [view.loc[index] if index is not None else 0]
 
+        row += [supporting_callers]
+
         x += [row]
         if assemble_truth:
             y += [1 if any(true_fusions.fusion.isin([fusion])) else 0]
 
-    columns = ['mean_spanning_reads', 'mean_junction_reads']
+    columns = [
+        'mean_spanning_reads',
+        'mean_junction_reads',
+        'max_spanning_reads',
+        'max_junction_reads',
+        'min_spanning_reads',
+        'min_junction_reads'
+    ]
     for c in callers:
         columns += [c + '_called', c + '_spanning_reads', c + '_junction_reads']
-    columns += encoded_features + extra_features
+    columns += encoded_features + extra_features + ['supporting_callers']
     x = pd.DataFrame(x, columns=columns)
     x = x.fillna(0) # fusions that only appear in truth set will have NaN means
 
@@ -479,14 +495,23 @@ def concatenate_caller_data(out_dir, inputs=[]):
             pd.read_pickle(f)
             for f in
             glob.glob(os.path.join(out_dir, '*', '*', 'fusions.pkl'))
+            # glob.glob(os.path.join(out_dir, 'LIB-008190wt', '*', 'fusions.pkl')) + glob.glob(os.path.join(out_dir, 'LIB-008191wt', '*', 'fusions.pkl')) # FIXME remove
         ],
         ignore_index=True,
         sort=False
     )
-    # caller_data['fusion'] = caller_data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1) # FIXME
+    for column in ['breakpoint1', 'breakpoint2']:
+        caller_data.fillna(value={column: -1}, inplace=True)
+        caller_data[column] = caller_data[column].astype('int32')
 
+    # caller_data['fusion'] = caller_data[['gene1', 'gene2']].apply(lambda x: '--'.join(sorted(x)), axis=1) # FIXME
     caller_data['fusion'] = caller_data[['gene1', 'gene2']].apply(lambda x: '--'.join(x), axis=1) # FIXME
     caller_data['sum_J_S'] = caller_data['junction_reads'] + caller_data['spanning_reads']
+
+    caller_data['clustered'] = False
+
+
+
     output = os.path.join(out_dir, 'caller_data.hdf')
 
     output = os.path.join(out_dir, 'all_caller_data.hdf')
