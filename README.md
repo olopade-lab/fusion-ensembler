@@ -5,3 +5,6 @@ Install Polyfuse By the Following Directions:
 2. cd polyfuse
 3. pip install .     #OR FOR DEVS pip install -e .
 
+After activating your environment, you may still not be able to import polyfuse inside of a jupyter notebook. If so, run the following:
+1. conda install ipykernel
+2. python3 -m ipykernel install --user --name=polyfuse
